@@ -88,6 +88,17 @@ class Repository(private val db: LocalDatabase) {
             m.copy(sets = m.sets + (m.sets.lastOrNull()?.copy(id = newId(), done = false) ?: TrainingSet(grams = 0)))
         } })
     }
+    /** Appends a drop set at 80% of the last working weight, keeping reps and RPE empty. */
+    suspend fun addDropSet(movementId: String) = changeActive { s ->
+        require(s.pausedAt == null) { "请先恢复训练" }
+        s.copy(movements = s.movements.map { m -> if (m.id != movementId) m else {
+            require(m.sets.size < 100) { "每个动作最多100组" }
+            val last = m.sets.lastOrNull() ?: TrainingSet(grams = 0)
+            val grams = Progression.roundToStep(last.grams * 4 / 5)
+            m.copy(sets = m.sets + last.copy(id = newId(), grams = grams, done = false,
+                rpe = null, restSeconds = null).withKind(SetKind.DROP))
+        } })
+    }
     suspend fun removeSet(movementId: String, setId: String) = changeActive { s ->
         require(s.pausedAt == null) { "请先恢复训练" }
         s.copy(movements = s.movements.map { m -> if (m.id != movementId) m else {

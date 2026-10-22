@@ -41,7 +41,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun setRest(seconds: Int) = act { owner.setRest(seconds) }
-    fun complete(m: String, s: String) = act { repo.changeActive { Rules.complete(it, m, s, rest.value, System.currentTimeMillis()) } }
+    fun complete(m: String, s: String) = act {
+        val active = sessions.value.firstOrNull { it.endedAt == null }
+        val fallback = active?.planId?.let { planId -> plans.value.firstOrNull { it.id == planId }?.restSeconds }
+            ?.takeIf { it > 0 } ?: rest.value
+        repo.changeActive { Rules.complete(it, m, s, fallback, System.currentTimeMillis()) }
+    }
+    fun addDrop(movementId: String) = act { repo.addDropSet(movementId) }
+    /** Applies a progression suggestion to the exercise's default weight for future sessions. */
+    fun applySuggestion(exercise: Exercise, deltaGrams: Long) = act {
+        val updated = exercise.copy(defaultGrams = (exercise.defaultGrams + deltaGrams).coerceIn(0, 1_000_000))
+        Rules.exercise(updated)
+        repo.saveExercise(updated)
+        message.value = "已把「${updated.name}」默认重量调整为 ${kg(updated.defaultGrams)} kg"
+    }
     fun togglePause() = act { repo.changeActive { s ->
         val now = System.currentTimeMillis(); if (s.pausedAt == null) Rules.pause(s, now) else Rules.resume(s, now)
     } }

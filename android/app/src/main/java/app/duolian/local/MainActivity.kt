@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -57,15 +58,39 @@ import java.util.Locale
 @Composable internal fun SetForm(x: TrainingSet, dismiss: () -> Unit, save: (TrainingSet) -> Unit) {
     var weight by remember { mutableStateOf(kg(x.grams)) }
     var reps by remember { mutableStateOf(x.reps.toString()) }
-    var warmup by remember { mutableStateOf(x.warmup) }
+    var kind by remember { mutableStateOf(x.effectiveKind) }
+    var rpe by remember { mutableStateOf(x.rpe?.toString() ?: "") }
+    var rest by remember { mutableStateOf(x.restSeconds?.toString() ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = dismiss, title = { Text("编辑这一组") }, text = { Column {
-        OutlinedTextField(weight, { weight = it }, label = { Text("重量 kg") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-        OutlinedTextField(reps, { reps = it }, label = { Text("次数") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-        Row { Checkbox(warmup, { warmup = it }); Text("热身组（不计容量）") }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    } }, confirmButton = { TextButton(onClick = { runCatching {
-        val set = x.copy(grams = Rules.parseKg(weight), reps = reps.toInt(), warmup = warmup); Rules.trainingSet(set); save(set)
+    AlertDialog(onDismissRequest = dismiss, title = { Text("编辑这一组") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(weight, { weight = it }, label = { Text("重量 kg") }, modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                OutlinedTextField(reps, { reps = it }, label = { Text("次数") }, modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+            Text("组类型", style = MaterialTheme.typography.labelMedium, color = Muted)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                SetKind.entries.forEach { k ->
+                    FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.short) })
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(rpe, { rpe = it }, label = { Text("RPE 5–10") }, modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(rest, { rest = it }, label = { Text("本组休息 秒") }, modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+            Text("RPE 10 表示当次力竭，留空即可不记录；本组休息留空则用计划或全局设置。",
+                style = MaterialTheme.typography.bodySmall, color = Muted)
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
+    }, confirmButton = { TextButton(onClick = { runCatching {
+        val set = x.copy(grams = Rules.parseKg(weight), reps = reps.toInt(),
+            rpe = rpe.trim().takeIf { it.isNotEmpty() }?.toInt(),
+            restSeconds = rest.trim().takeIf { it.isNotEmpty() }?.toInt()).withKind(kind)
+        Rules.trainingSet(set); save(set)
     }.onSuccess { dismiss() }.onFailure { error = it.message ?: "输入无效" } }) { Text("保存") } },
         dismissButton = { TextButton(onClick = dismiss) { Text("取消") } })
 }
@@ -74,6 +99,9 @@ import java.util.Locale
     var ids by remember { mutableStateOf(p?.exerciseIds ?: emptyList()) }
     var sets by remember { mutableStateOf((p?.sets ?: 3).toString()) }
     var reps by remember { mutableStateOf((p?.reps ?: 10).toString()) }
+    var scheme by remember { mutableStateOf(p?.scheme ?: SetScheme.STRAIGHT) }
+    var superset by remember { mutableStateOf(p?.superset ?: SupersetMode.NONE) }
+    var rest by remember { mutableStateOf((p?.restSeconds ?: 0).toString()) }
     var error by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = dismiss, title = { Text(if (p == null) "创建计划" else "编辑计划") }, text = {
@@ -82,7 +110,18 @@ import java.util.Locale
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(sets, { sets = it }, label = { Text("默认组数") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 OutlinedTextField(reps, { reps = it }, label = { Text("默认次数") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(rest, { rest = it }, label = { Text("休息 秒") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
+            Text("训练方案", style = MaterialTheme.typography.labelMedium, color = Muted)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                SetScheme.entries.forEach { s -> FilterChip(selected = scheme == s, onClick = { scheme = s }, label = { Text(s.label) }) }
+            }
+            Text("动作编排", style = MaterialTheme.typography.labelMedium, color = Muted)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                SupersetMode.entries.forEach { s -> FilterChip(selected = superset == s, onClick = { superset = s }, label = { Text(s.label) }) }
+            }
+            Text("金字塔按组自动增减 5% 重量；递减组按 80% 追加组；超级组组间只休息 ${Rules.SupersetRestSeconds} 秒。",
+                style = MaterialTheme.typography.bodySmall, color = Muted)
             Text("已选 ${ids.size} 个动作 · 按训练顺序")
             ids.forEachIndexed { index, id -> Row {
                 Text("${index + 1}. ${exercises.find { it.id == id }?.name ?: "已删除动作"}", Modifier.weight(1f))
@@ -97,7 +136,9 @@ import java.util.Locale
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }, confirmButton = { TextButton(onClick = { runCatching {
-        val plan = Plan(p?.id ?: newId(), name.trim(), ids, sets.toInt(), reps.toInt()); Rules.plan(plan, exercises); save(plan)
+        val plan = Plan(p?.id ?: newId(), name.trim(), ids, sets.toInt(), reps.toInt(),
+            scheme, rest.toInt(), superset)
+        Rules.plan(plan, exercises); save(plan)
     }.onSuccess { dismiss() }.onFailure { error = it.message ?: "输入无效" } }) { Text("保存") } },
         dismissButton = { TextButton(onClick = dismiss) { Text("取消") } })
 }

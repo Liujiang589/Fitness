@@ -14,21 +14,30 @@ val Codec = Json { encodeDefaults = true; ignoreUnknownKeys = false }
 )
 @Serializable data class Plan(
     val id: String = newId(), val name: String, val exerciseIds: List<String>,
-    val sets: Int = 3, val reps: Int = 10
+    val sets: Int = 3, val reps: Int = 10,
+    val scheme: SetScheme = SetScheme.STRAIGHT, val restSeconds: Int = 0,
+    val superset: SupersetMode = SupersetMode.NONE
 )
 @Serializable data class TrainingSet(
     val id: String = newId(), val grams: Long, val reps: Int = 10,
-    val warmup: Boolean = false, val done: Boolean = false
-)
+    val warmup: Boolean = false, val done: Boolean = false,
+    val kind: SetKind = SetKind.WORK, val rpe: Int? = null, val restSeconds: Int? = null
+) {
+    /** Old payloads only carry [warmup]; new payloads keep both fields in sync. */
+    val effectiveKind: SetKind get() = if (warmup && kind == SetKind.WORK) SetKind.WARMUP else kind
+    val countsVolume: Boolean get() = done && !warmup && effectiveKind != SetKind.WARMUP
+    fun withKind(k: SetKind): TrainingSet = copy(kind = k, warmup = k == SetKind.WARMUP)
+}
 @Serializable data class Movement(
     val id: String = newId(), val exerciseId: String, val name: String,
-    val sets: List<TrainingSet>
+    val sets: List<TrainingSet>,
+    val supersetGroup: Int? = null, val note: String = ""
 )
 @Serializable data class Session(
     val id: String = newId(), val title: String, val startedAt: Long,
     val endedAt: Long? = null, val pausedAt: Long? = null, val pausedMs: Long = 0,
     val restDeadline: Long? = null, val restRemainingMs: Long = 0,
-    val movements: List<Movement>
+    val movements: List<Movement>, val planId: String? = null, val note: String = ""
 )
 @Serializable data class Body(
     val id: String = newId(), val date: String = LocalDate.now().toString(),
@@ -42,7 +51,7 @@ val Codec = Json { encodeDefaults = true; ignoreUnknownKeys = false }
     val id: String = newId(), val date: String = LocalDate.now().toString(), val ml: Int
 )
 @Serializable data class Backup(
-    val format: String = "duolian-native", val version: Int = 1,
+    val format: String = "duolian-native", val version: Int = 2,
     val exercises: List<Exercise>, val plans: List<Plan>, val sessions: List<Session>,
     val body: List<Body>, val food: List<Food>, val water: List<Water>, val restSeconds: Int = 60
 )
@@ -55,14 +64,25 @@ object Rules {
     fun plan(x: Plan, exercises: List<Exercise>) {
         id(x.id); label(x.name)
         require(x.sets in 1..100 && x.reps in 0..1000) { "组数或次数超限" }
+        require(x.restSeconds in 0..600) { "组间休息需为0–600秒" }
         require(x.exerciseIds.size in 1..100 && x.exerciseIds.distinct().size == x.exerciseIds.size) { "至少选择一个动作，不能重复" }
         require(x.exerciseIds.all { k -> exercises.any { it.id == k } }) { "计划引用的动作不存在" }
+        require(x.superset != SupersetMode.PAIRS || x.exerciseIds.size >= 2) { "超级组至少需要两个动作" }
     }
     fun trainingSet(x: TrainingSet) {
         id(x.id); require(x.grams in 0..1_000_000 && x.reps in 0..1000) { "重量需为0–1000kg，次数0–1000" }
+        require(x.rpe == null || x.rpe in 5..10) { "RPE需为5–10" }
+        require(x.restSeconds == null || x.restSeconds in 0..600) { "本组休息需为0–600秒" }
+    }
+    fun movement(x: Movement) {
+        id(x.exerciseId); label(x.name); require(x.sets.isNotEmpty()) { "动作至少要有一组" }
+        unique(x.sets.map { it.id }, 100); require(x.sets.size <= 100) { "每个动作最多100组" }
+        require(x.supersetGroup == null || x.supersetGroup in 1..100) { "超级组编号无效" }
+        require(x.note.length <= 500) { "动作备注最多500字" }
+        x.sets.forEach(::trainingSet)
     }
     fun volumeKg(s: Session): Double = s.movements.sumOf { m ->
-        m.sets.filter { it.done && !it.warmup }.sumOf { it.grams * it.reps }
+        m.sets.filter { it.countsVolume }.sumOf { it.grams * it.reps }
     } / 1000.0
     fun elapsedMs(s: Session, now: Long): Long =
         ((s.endedAt ?: s.pausedAt ?: now) - s.startedAt - s.pausedMs).coerceAtLeast(0)
@@ -78,13 +98,27 @@ object Rules {
         return s.copy(pausedAt = null, pausedMs = s.pausedMs + (now - at).coerceAtLeast(0),
             restDeadline = if (s.restRemainingMs > 0) now + s.restRemainingMs else null, restRemainingMs = 0)
     }
+    /**
+     * Completing a set starts a rest window. Inside a superset the transition to the next
+     * movement uses a shorter window and only the last movement of the group earns the full rest.
+     */
     fun complete(s: Session, movementId: String, setId: String, seconds: Int, now: Long): Session {
         require(s.endedAt == null && s.pausedAt == null) { "请先恢复训练" }
         require(seconds in 0..600)
-        val target = s.movements.first { it.id == movementId }.sets.first { it.id == setId }
+        val movement = s.movements.first { it.id == movementId }
+        val target = movement.sets.first { it.id == setId }
+        val rest = restAfter(s, movement, target, seconds)
         return s.copy(movements = s.movements.map { m -> if (m.id != movementId) m else m.copy(
             sets = m.sets.map { if (it.id == setId) it.copy(done = !it.done) else it }) },
-            restDeadline = if (!target.done && seconds > 0) now + seconds * 1000L else s.restDeadline)
+            restDeadline = if (!target.done && rest > 0) now + rest * 1000L else s.restDeadline)
+    }
+    /** Rest length for the set that just changed state: set override → superset transition → fallback. */
+    fun restAfter(s: Session, m: Movement, set: TrainingSet, fallback: Int): Int {
+        set.restSeconds?.let { return it }
+        val group = m.supersetGroup ?: return fallback
+        val members = s.movements.filter { it.supersetGroup == group }
+        val position = members.indexOfFirst { it.id == m.id }
+        return if (position in 0 until members.size - 1) minOf(fallback, SupersetRestSeconds) else fallback
     }
     fun finish(s: Session, now: Long): Session {
         require(s.endedAt == null && s.movements.any { m -> m.sets.any { it.done } }) { "请先完成至少一组" }
@@ -94,10 +128,14 @@ object Rules {
     }
     fun start(p: Plan, exercises: List<Exercise>, now: Long): Session {
         plan(p, exercises)
-        return Session(title = p.name, startedAt = now, movements = p.exerciseIds.map { key ->
-            val e = exercises.first { it.id == key }
-            Movement(exerciseId = key, name = e.name, sets = List(p.sets) { TrainingSet(grams = e.defaultGrams, reps = p.reps) })
-        })
+        val groups = Progression.supersetGroups(p.superset, p.exerciseIds.size)
+        return Session(title = p.name, startedAt = now, planId = p.id,
+            movements = p.exerciseIds.mapIndexed { index, key ->
+                val e = exercises.first { it.id == key }
+                Movement(exerciseId = key, name = e.name,
+                    sets = Progression.schemeSets(p.scheme, e.defaultGrams, p.reps, p.sets),
+                    supersetGroup = groups[index])
+            })
     }
     fun body(x: Body) {
         id(x.id); date(x.date); require(x.grams in 20_000..500_000) { "体重需为20–500kg" }
@@ -110,14 +148,14 @@ object Rules {
     }
     fun water(x: Water) { id(x.id); date(x.date); require(x.ml in 1..10000) { "饮水量需为1–10000ml" } }
     fun backup(b: Backup) {
-        require(b.format == "duolian-native" && b.version == 1) { "不兼容此备份格式；预览版和原版备份暂不支持" }
+        require(b.format == "duolian-native" && b.version in 1..2) { "不兼容此备份格式；预览版和原版备份暂不支持" }
         require(b.restSeconds in 0..600)
         unique(b.exercises.map { it.id }, 1000); b.exercises.forEach(::exercise)
         unique(b.plans.map { it.id }, 1000); b.plans.forEach { plan(it, b.exercises) }
         unique(b.sessions.map { it.id }, 10000)
         require(b.sessions.count { it.endedAt == null } <= 1) { "备份中存在多个未结束训练" }
         b.sessions.forEach { s ->
-            id(s.id); label(s.title)
+            id(s.id); label(s.title); require(s.note.length <= 1000) { "训练备注最多1000字" }
             require(s.startedAt in 1..MAX_TIME && s.pausedMs in 0..MAX_TIME)
             require(s.endedAt == null || s.endedAt in s.startedAt..MAX_TIME)
             require(s.pausedAt == null || (s.endedAt == null && s.pausedAt in s.startedAt..MAX_TIME))
@@ -126,8 +164,7 @@ object Rules {
             require(s.pausedAt == null || s.restDeadline == null)
             require(s.endedAt == null || (s.pausedAt == null && s.restDeadline == null && s.restRemainingMs == 0L))
             require(s.movements.isNotEmpty()); unique(s.movements.map { it.id }, 100)
-            s.movements.forEach { m -> id(m.exerciseId); label(m.name); require(m.sets.isNotEmpty())
-                unique(m.sets.map { it.id }, 100); m.sets.forEach(::trainingSet) }
+            s.movements.forEach(::movement)
         }
         unique(b.body.map { it.id }, 20000); b.body.forEach(::body)
         unique(b.food.map { it.id }, 20000); b.food.forEach(::food)
@@ -138,6 +175,8 @@ object Rules {
         require(kg >= java.math.BigDecimal.ZERO && kg <= java.math.BigDecimal(1000)) { "重量需为0–1000kg" }
         return kg.multiply(java.math.BigDecimal(1000)).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact()
     }
+    /** Short transition inside a superset, kept below the usual rest so the pair stays intense. */
+    const val SupersetRestSeconds = 15
     private const val MAX_TIME = 10_000_000_000_000L
     private fun id(s: String) { require(s.matches(Regex("[a-zA-Z0-9_-]{1,80}"))) { "记录ID无效" } }
     private fun label(s: String) { require(s.isNotBlank() && s.length <= 100) { "名称必填，最多100字" } }

@@ -89,7 +89,12 @@ internal class ScreenActions(
                     Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(PaleBlue),contentAlignment=Alignment.Center){AppSymbol(2,Blue)}
                     Column(Modifier.weight(1f).padding(start=12.dp)) {
                         Text(p.name,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge)
-                        Text("${p.exerciseIds.size} 个动作 · ${p.exerciseIds.size*p.sets} 组",color=Muted,style=MaterialTheme.typography.bodySmall)
+                        val extras=buildList{
+                            if(p.scheme!=SetScheme.STRAIGHT)add(p.scheme.label)
+                            if(p.superset!=SupersetMode.NONE)add(p.superset.label)
+                            if(p.restSeconds>0)add("休息 ${p.restSeconds}s")
+                        }
+                        Text("${p.exerciseIds.size} 个动作 · ${p.sets} 组 × ${p.reps} 次"+(if(extras.isEmpty())"" else " · "+extras.joinToString(" · ")),color=Muted,style=MaterialTheme.typography.bodySmall)
                     }
                     Box {TextButton(onClick={menu=true},contentPadding=PaddingValues(0.dp),modifier=Modifier.width(36.dp)){Text("•••")}
                         DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
@@ -162,7 +167,7 @@ internal class ScreenActions(
     }
 }
 
-@Composable internal fun HistoryPage(sessions: List<Session>,vm: MainViewModel,a: ScreenActions){
+@Composable internal fun HistoryPage(sessions: List<Session>, exercises: List<Exercise>, plans: List<Plan>, vm: MainViewModel,a: ScreenActions){
     var range by rememberSaveable{mutableStateOf("全部")};var selected by rememberSaveable{mutableStateOf<String?>(null)}
     val all=sessions.filter{it.endedAt!=null}.sortedByDescending{it.startedAt}
     val history=all.filter{range=="全部"||Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()>=LocalDate.now().minusDays(if(range=="近7天")6 else 29)}
@@ -188,8 +193,31 @@ internal class ScreenActions(
                 Column(Modifier.weight(1f).padding(start=12.dp)){Text(s.title,fontWeight=FontWeight.Bold);Text(stamp(s.startedAt),color=Muted,style=MaterialTheme.typography.bodySmall)}
                 TextButton(onClick={selected=if(selected==s.id)null else s.id}){Text(if(selected==s.id)"收起" else "详情")}}
             Row{Stat("${s.movements.sumOf{it.sets.count{it.done}}}","完成组",Modifier.weight(1f));Stat(clock(Rules.elapsedMs(s,s.endedAt!!)),"训练时长",Modifier.weight(1f))}
-            Text("容量 ${number(Rules.volumeKg(s))} kg",color=Blue,fontWeight=FontWeight.SemiBold)
-            if(selected==s.id){s.movements.forEach{m->HorizontalDivider(color=Page);Text(m.name,fontWeight=FontWeight.SemiBold);m.sets.forEachIndexed{i,x->Text("${i+1}  ·  ${kg(x.grams)} kg × ${x.reps}  ·  ${if(x.warmup)"热身" else "正式"}  ·  ${if(x.done)"已完成" else "未完成"}",style=MaterialTheme.typography.bodySmall,color=Muted)}}
+            Text("容量 ${number(Rules.volumeKg(s))} kg · 最佳 1RM ${kg(Progression.bestOneRm(s))} kg",color=Blue,fontWeight=FontWeight.SemiBold)
+            if(selected==s.id){s.movements.forEach{m->
+                HorizontalDivider(color=Page)
+                Row(verticalAlignment=Alignment.CenterVertically){
+                    Text(m.name,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
+                    m.supersetGroup?.let{g->Text("超级组 ${('A'.code+g-1).toChar()}",color=Blue,style=MaterialTheme.typography.labelSmall)}
+                }
+                m.sets.forEachIndexed{i,x->Text("${i+1}  ·  ${kg(x.grams)} kg × ${x.reps}  ·  ${x.effectiveKind.label}${x.rpe?.let{"  ·  RPE $it"}?:""}  ·  ${if(x.countsVolume)"计入容量" else if(x.done)"不计容量" else "未完成"}",style=MaterialTheme.typography.bodySmall,color=Muted)}
+                val exercise=exercises.find{it.id==m.exerciseId}
+                if(exercise!=null){
+                    val targetReps=plans.find{it.id==s.planId}?.reps?:10
+                    val earlier=all.filter{it.startedAt<s.startedAt}
+                    val suggestion=Progression.suggestFor(m.exerciseId,earlier,targetReps,exercise.defaultGrams)
+                    if(suggestion.level!=SuggestionLevel.NO_DATA){
+                        Row(Modifier.fillMaxWidth().padding(top=4.dp),verticalAlignment=Alignment.CenterVertically){
+                            Column(Modifier.weight(1f)){
+                                Text(suggestion.headline,color=if(suggestion.level==SuggestionLevel.PROGRESS)Color(0xFF2C8C63) else Muted,style=MaterialTheme.typography.labelLarge)
+                                Text(suggestion.detail,color=Muted,style=MaterialTheme.typography.bodySmall)
+                            }
+                            if(suggestion.level==SuggestionLevel.PROGRESS||suggestion.level==SuggestionLevel.DELOAD)
+                                TextButton(onClick={vm.applySuggestion(exercise,suggestion.deltaGrams)}){Text("应用到默认重量")}
+                        }
+                    }
+                }
+            }
                 TextButton(onClick={a.ask("永久删除这条训练历史？"){vm.act{vm.repo.deleteSession(s.id)}}}){Text("删除记录",color=MaterialTheme.colorScheme.error)}}
         }}
     }
