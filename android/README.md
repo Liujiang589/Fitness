@@ -1,62 +1,67 @@
-# 独练 Android 第四阶段构建结果
+# 独练 Android 工程（0.4.0）
 
-已生成独立应用 `app.duolian.local` 的调试 APK，版本 `0.2.0-dev`，支持 Android 8.0（API 26）及以上。
+包名 `app.duolian.local`，Kotlin + Jetpack Compose + Room，支持 Android 8.0（API 26）及以上。
 
-| 验证项 | 实际结果 |
-|---|---|
-| Kotlin / Room KSP 编译 | 通过 |
-| JUnit 业务测试 | 15 项通过，0 失败、0 错误、0 跳过 |
-| Android Lint | 0 错误，2 项警告 |
-| 应用 APK / 设备测试 APK | 均已编译 |
-| APK 签名 / ZIP 完整性 / 对齐 | 均通过 |
-| INTERNET 权限 | 无 |
-| 设备测试 | 已编写 5 项，尚未执行 |
-| 手机安装、界面与后台行为验收 | 尚未执行 |
+## 0.4.0 新增
 
-## 当前功能
+- **训练方案**：常规组、递增金字塔、递减金字塔、递减组（drop set），开始训练时按方案自动生成每组的重量与次数。
+- **组类型与 RPE**：正式 / 热身 / 递减 / AMRAP / 退让五类；每组可记录 RPE（5–10）与独立休息秒数，热身组不计容量。
+- **超级组**：计划可设为两两超级组或整轮循环，超级组内只休息 15 秒，最后一组后恢复完整休息。
+- **1RM 与递进建议**：Epley 公式估算，历史页按上次完成情况给出 +2.5 kg / 维持 / 减重建议，可一键写入动作默认重量。
+- **HIIT 间歇**：内置 4 个模板，也可自定义训练/休息/轮数/准备时间；前台服务 + 通知栏倒计时，锁屏或切后台继续计时，阶段切换有提示音。
+- **数据总览**：训练负荷柱状图（7/30/90 天）、连续训练天数、身体体重/体脂曲线、近 7 天宏量营养环、肌群容量分布、个人纪录。
+- **备份 v2**：`duolian-native` v2 备份包含 HIIT 历史，导入兼容 v1；上限提升到 8 MiB；每日首次打开自动备份一次并保留上一份。
+- **动作库**：动作可收藏、可按收藏筛选，可为动作选择本机照片（通过系统文件选择器持久授权）。
 
-- 40 个独立编写的基础动作，支持自定义动作、搜索、筛选、编辑和删除。
-- 训练计划与排序；训练动作快照；重量、次数、热身组、完成状态、增删组、暂停恢复、休息倒计时、结束与放弃。
-- Room 本地保存训练、历史、身体、饮食和饮水；DataStore 保存休息偏好；完成的正式组计入训练容量。
-- 系统文件选择器导入导出原生 JSON 备份；导入前校验，替换前保存恢复快照。
+## 目录
 
-## 仍需验收与完善
-
-本次结果证明源码能编译、业务单元测试通过，并产出可校验的 APK；尚不能证明所有手机上的实际使用体验。
-未连接手机或模拟器，未安装应用，也未执行设备测试。进程被杀后恢复、离线使用、SAF 文件选择、屏幕布局与倒计时后台行为仍待设备验收。
-目前没有完整原版动作库或媒体、HIIT、高级组类型、后台通知；身体和饮食编辑、更多统计仍待完善。
-原生备份格式 `duolian-native` v1 与 HTML 预览和原版备份不兼容，导入上限 4 MiB。
-这是调试签名的开发版本，不是正式发布版。
-
-## 构建与范围记录
-
-采用 JDK 17、Gradle 8.11.1、AGP 8.9.2、Kotlin 2.0.21、KSP 2.0.21-1.0.28、Room 2.7.2、SDK 35。
-KAPT 在此受限 Windows 环境中调用文件路径解析失败，已迁移到 KSP2；改用项目独立的调试签名配置，避免默认密钥的锁文件错误。
-Gradle 工作进程曾因中文路径与强制 UTF-8 编码不一致而无法启动，现已恢复平台默认编码；15 项测试已能实际执行。
-API 27 的浅色导航栏属性已放入 `values-v27`，API 26 使用深色导航栏。
-工具仅配置到项目及本次进程；未改写原始 APK、原应用数据或原预览。
-此前 SDK 许可命令曾额外接受 7 项不需要的许可，已在操作时说明；多余许可文件已移入备份目录，目前 SDK 活跃许可目录仅保留必需的 `android-sdk-license`。移动文件不撤销此前的接受记录。
-
-## 文件校验
-
-- APK：`Duolian-0.2.0-debug.apk`
-- 大小：11,261,456 字节
-- SHA-256：`accfa9345927bb6e51bfd9d1364db6a4149b5419e794be6e82e0dcea3568fcdd`
-- 源码包包含当前源码、Room 架构、构建脚本、测试源码和验证结果；不包含原版资产、依赖缓存、工具安装包或签名私钥。
-
-
-## 从源码重新构建
-
-先准备上述固定版本的 JDK、Gradle 和 Android SDK。`Build-Local.ps1` 仅设置当前进程的环境，默认执行单元测试、Lint、应用 APK 与设备测试 APK 构建。
-构建脚本会生成项目独立的调试签名密钥。源码包不含私钥；后续覆盖升级须在同一本地工程中保留原签名。
-
-```powershell
-.\Build-Local.ps1 -JdkPath '<JDK目录>' -SdkPath '<SDK目录>' -GradlePath '<Gradle目录>'
+```
+app/src/main/java/app/duolian/local/
+  domain/     Models.kt（实体与校验）Progression.kt（方案/1RM/建议）
+              Hiit.kt（间歇状态机）Analytics.kt（统计聚合）
+  data/       Database.kt（Room）Repository.kt（读写与快照）
+  timer/      TimerService.kt（前台倒计时通知）
+  *.kt        MainActivity / Pages / TrainingPage / ToolsPage / Charts / Design
+app/src/test/          单元测试（JVM，无需设备）
+app/src/androidTest/   设备测试（需要手机或模拟器）
 ```
 
-成功后应用位于 `app/build/outputs/apk/debug/app-debug.apk`。
-只有连接专用测试手机或模拟器，并明确同意安装与测试数据替换后，才运行 `-DeviceTests`。
-设备测试会操作独立应用 `app.duolian.local` 的测试数据，不针对原版应用。
+数据层用「Room 表 + JSON 载荷」保存实体，Room 版本仍为 1，**没有数据库迁移**；新增字段都有默认值，旧载荷可直接反序列化。
 
-Room 使用每条实体记录的 JSON 载荷和训练快照，版本为 1；当前没有破坏性迁移。
-备份恢复通过单次 Room 事务替换数据库；休息偏好独立更新。数据库功能和界面流程仍需设备验收。
+## 构建
+
+需要 JDK 17、Gradle 8.11.1、Android SDK 35（build-tools 35.0.0）。本仓库不含签名私钥；调试包使用工程内 `.local-signing/duolian-debug.keystore`（已被 git 忽略）。
+
+```powershell
+# 首次：生成/复制调试密钥并构建
+.\Build-Local.ps1 -JdkPath '<JDK>' -SdkPath '<SDK>' -GradlePath '<Gradle>'
+
+# 只构建 APK
+.\Build-Local.ps1 -JdkPath '<JDK>' -SdkPath '<SDK>' -GradlePath '<Gradle>' -Tasks ':app:assembleDebug'
+```
+
+产物：`app/build/outputs/apk/debug/app-debug.apk`。
+
+注意：
+
+- `gradle.properties` 已包含 `android.overridePathCheck=true`，允许在含中文的用户目录下构建。
+- 若 PowerShell 执行策略禁止运行脚本，先在当前会话执行 `Set-ExecutionPolicy -Scope Process Bypass`。
+- 设备测试（`-DeviceTests`）会操作 `app.duolian.local` 的测试数据，必须在连接专用测试设备并明确同意后运行。
+
+## 0.4.0 验证结果
+
+| 项目 | 结果 |
+|---|---|
+| JVM 单元测试 | 67 项通过（Rules / Progression / Hiit / Analytics / Backup） |
+| 编译 | `:app:assembleDebug` 通过 |
+| 设备测试包 | `:app:assembleDebugAndroidTest` 通过编译 |
+| 真机执行 | **未执行**（本次没有连接设备或模拟器） |
+| 签名 | 调试签名，与 0.3.0 使用同一密钥，可覆盖升级 |
+
+## 已知限制
+
+- 未做真机验收：通知权限、锁屏计时、相册选择、进程被杀后的恢复都只在代码层面处理，未在设备上验证。
+- HIIT 记录存在 metadata 表中（最多 200 条），不参与训练容量统计。
+- 不含动作演示视频；照片由用户自行添加，应用不内置任何第三方媒体。
+- 备份上限 8 MiB；超过时导出会提示先清理历史。
+- 无云同步、无账号、无网络权限。
