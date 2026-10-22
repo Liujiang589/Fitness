@@ -133,21 +133,47 @@ private data class Confirmation(val title:String,val action:()->Unit)
 }
 
 @Composable private fun ProfilePage(body:List<Body>,sessions:List<Session>,rest:Int,busy:Boolean,vm:MainViewModel,a:ScreenActions,export:()->Unit,import:()->Unit,recovery:()->Unit,autoBackup:()->Unit,autoBackupAt:Long?){
+    val finished = sessions.filter{it.endedAt!=null}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(15.dp)){
-        item{Panel{Row{Stat(sessions.count{it.endedAt!=null}.toString(),"累计训练",Modifier.weight(1f));Stat(body.firstOrNull()?.let{kg(it.grams)}?:"—","最近体重 kg",Modifier.weight(1f))}}}
+        item{Panel{
+            Row(verticalAlignment=Alignment.CenterVertically){
+                Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(PaleBlue),
+                    contentAlignment=Alignment.Center){
+                    Text("独",color=Blue,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                }
+                Column(Modifier.weight(1f).padding(start=14.dp)){
+                    Text("本地账户",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge)
+                    Text("数据只保存在这台手机",color=Muted,style=MaterialTheme.typography.bodySmall)
+                }
+            }
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                StatTile(finished.size.toString(),"累计训练",Modifier.weight(1f),accent=Blue)
+                StatTile(number(Analytics.totalVolume(finished)),"累计容量 kg",Modifier.weight(1f))
+                StatTile(Analytics.streak(finished).toString(),"连续天数",Modifier.weight(1f))
+            }
+        }}
         item{Section("身体记录","＋ 记录",{a.body(null)})}
         if(body.isEmpty())item{EmptyPanel("从今天开始记录变化","记录体重和体脂率，数据保存在这台手机。")}
         items(body,key={it.id}){b->Panel{Row{Column(Modifier.weight(1f)){Text("${kg(b.grams)} kg",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text("${b.date}  ${b.fatPercent?.let{"体脂 ${number(it)}%"}?:""}",color=Muted,style=MaterialTheme.typography.bodySmall)};TextButton(onClick={a.body(b)}){Text("编辑")};TextButton(onClick={a.ask("删除此身体记录？"){vm.act{vm.repo.deleteBody(b.id)}}}){Text("删除",color=Muted)}}}}
         item{Section("训练设置")}
-        item{Panel{Row{Column(Modifier.weight(1f)){Text("默认组间休息",fontWeight=FontWeight.SemiBold);Text("${rest} 秒",color=Muted)};TextButton(onClick={a.auxiliary("rest")}){Text("修改")}};Text("组间休息与 HIIT 计时会显示通知，锁屏或切到后台也能看到。",style=MaterialTheme.typography.bodySmall,color=Muted)}}
-        item{Section("数据与备份")}
-        item{Panel{
-            Button(onClick=export,enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("导出全部数据")}
-            OutlinedButton(onClick=import,enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("导入备份（v1 / v2）")}
-            Row{TextButton(onClick=recovery){Text("导入前备份")};TextButton(onClick=autoBackup){Text("自动备份")}}
-            Text(if(autoBackupAt==null)"每日首次打开应用时自动备份一次（最多 8 MiB）。" else "每日自动备份：上次 ${stamp(autoBackupAt)}。",style=MaterialTheme.typography.bodySmall,color=Muted)
-            Text("导入前会自动保留恢复快照；备份格式 duolian-native v2。",style=MaterialTheme.typography.bodySmall,color=Muted)
+        item{GroupCard{
+            SettingRow("默认组间休息","组间与 HIIT 计时会显示在通知栏",trailing="${rest} 秒"){a.auxiliary("rest")}
         }}
-        item{Text("独练 0.4 开发版 · 本地训练手记",Modifier.padding(vertical=10.dp),style=MaterialTheme.typography.labelSmall,color=Muted)}
+        item{Section("数据与备份")}
+        item{GroupCard{
+            SettingRow("导出全部数据","duolian-native v2 · JSON",enabled=!busy,onClick=export)
+            HorizontalDivider(color=Page)
+            SettingRow("导入备份","支持 v1 / v2，导入前自动留快照",enabled=!busy,onClick=import)
+            HorizontalDivider(color=Page)
+            SettingRow("导入前备份","最近一次导入前的恢复文件",onClick=recovery)
+            HorizontalDivider(color=Page)
+            SettingRow("自动备份",
+                if(autoBackupAt==null)"每日首次打开自动备份（上限 8 MiB）" else "上次 ${stamp(autoBackupAt)}",
+                onClick=autoBackup)
+        }}
+        item{Section("关于")}
+        item{GroupCard{
+            SettingRow("独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.5.1（7）")
+        }}
     }
 }

@@ -40,11 +40,14 @@ import kotlinx.coroutines.delay
                 TextButton(enabled=!busy,onClick=vm::togglePause){Text(if(s.pausedAt==null)"暂停" else "继续")}
             }
             Text(s.title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-            Text(clock(Rules.elapsedMs(s,now)),style=MaterialTheme.typography.displaySmall,fontWeight=FontWeight.Bold)
+            Text(clock(Rules.elapsedMs(s,now)),style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.Bold,color=Ink)
             val completed=s.movements.sumOf{it.sets.count{set->set.done}};val total=s.movements.sumOf{it.sets.size}
-            Row{Stat("$completed / $total","完成组数",Modifier.weight(1f));Stat(number(Rules.volumeKg(s)),"训练容量 kg",Modifier.weight(1f))}
-            LinearProgressIndicator(progress={if(total==0)0f else completed.toFloat()/total},modifier=Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),trackColor=Color.White)
-            Text("容量 ${number(Rules.volumeKg(s))} kg · 休息 ${(Rules.restMs(s,now)+999)/1000}s",color=Blue,style=MaterialTheme.typography.bodyMedium)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                StatTile("$completed / $total","完成组数",Modifier.weight(1f),tint=Color.White)
+                StatTile(number(Rules.volumeKg(s)),"训练容量 kg",Modifier.weight(1f),tint=Color.White)
+                StatTile("${(Rules.restMs(s,now)+999)/1000}s","休息",Modifier.weight(1f),tint=Color.White)
+            }
+            LinearProgressIndicator(progress={if(total==0)0f else completed.toFloat()/total},modifier=Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),trackColor=Color.White)
             if(Rules.restMs(s,now)>0)OutlinedButton(onClick={vm.skipRest()},modifier=Modifier.fillMaxWidth()){Text("跳过休息")}
         }
         s.movements.forEachIndexed{index,m->Panel{

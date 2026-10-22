@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -215,5 +216,44 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
             }
             if (selected) Text("✓", color = Blue, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+/** Metric tile used by the home and history summaries. */
+@Composable internal fun StatTile(value: String, label: String, modifier: Modifier = Modifier,
+    accent: Color = Ink, tint: Color = Page) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(tint).padding(vertical = 12.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+            color = accent, maxLines = 1)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Muted, maxLines = 1)
+    }
+}
+
+/** White rounded container that groups setting rows. */
+@Composable internal fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Color.White) {
+        Column(content = content)
+    }
+}
+
+/** Settings row with optional value and chevron. */
+@Composable internal fun SettingRow(title: String, subtitle: String? = null, trailing: String? = null,
+    enabled: Boolean = true, onClick: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth()
+        .then(if (onClick != null && enabled) Modifier.clickable { onClick() } else Modifier)
+        .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) Ink else Muted)
+            subtitle?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
+        }
+        trailing?.let {
+            Text(it, color = Muted, style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 8.dp))
+        }
+        if (onClick != null) Text("›", color = Muted, style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = 8.dp))
     }
 }
