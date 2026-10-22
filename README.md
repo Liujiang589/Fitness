@@ -28,8 +28,9 @@
 - [docs/PHASE4_HANDOFF.md](docs/PHASE4_HANDOFF.md)：原生开发、构建与真机测试过程，末尾追加了 0.3 状态。
 - `docs/`：阶段一至阶段四的原始 Markdown 记录、历史 README 及相关 CSV 清单。
 - `history/Duolian-0.2.0-debug.apk`：0.2 历史安装包。
+- `android/`：Android 源码工程（Kotlin / Jetpack Compose / Room），可用 JDK 17 + Gradle 8.11.1 + Android SDK 35 重建 APK；不含签名私钥。
 - `SHA256SUMS.txt`：本目录文件校验清单。
 
 原始阶段文档按当时状态保留，早期“未构建/未安装”等描述是历史记录；当前版本以本说明与 UI03_HANDOFF.md 为准。部分原文链接指向原工程的源码、分析证据或预览文件，这些文件未包含在本次整理范围内。
 
-本目录为安装包与文档包，未包含 Android 源码或签名私钥，也未执行 GitHub 上传。
+本目录包含安装包、阶段文档与 `android/` 源码工程；不含签名私钥。源码可用于本地重建与继续开发。
