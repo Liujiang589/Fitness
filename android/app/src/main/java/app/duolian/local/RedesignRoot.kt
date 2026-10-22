@@ -207,7 +207,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
         }}
         item{Section("关于")}
         item{GroupCard{
-            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.8.0（10）")
+            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.9.0（11）")
         }}
     }
 }

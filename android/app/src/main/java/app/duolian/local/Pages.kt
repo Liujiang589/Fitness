@@ -93,8 +93,10 @@ internal class ScreenActions(
 @Composable internal fun TrainingPage(vm: MainViewModel, exercises: List<Exercise>, plans: List<Plan>,
     sessions: List<Session>, food: List<Food>, water: List<Water>, busy: Boolean, a: ScreenActions) {
     val active = sessions.firstOrNull { it.endedAt == null }; val history = sessions.filter { it.endedAt != null }
+    val alerts = remember(sessions, exercises) { Diagnostics.alerts(sessions, exercises) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (alerts.isNotEmpty()) item { DiagnosticsBanner(alerts) }
         if (active != null) item { ActiveTraining(active, vm, busy, a.ask) }
         else {
             item { NutritionSummary(food, water, LocalDate.now().toString(), a) }
@@ -253,6 +255,7 @@ internal class ScreenActions(
     val history=all.filter{(picked==null||Analytics.dateOf(it)==picked)&&(range=="全部"||Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()>=LocalDate.now().minusDays(if(range=="近7天")6 else 29))}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         item{CalendarCard(all,month,{month=it},picked){ d -> picked = if(picked==d) null else d }}
+        item{DiagnosticsPanel(all,exercises)}
         item{TrainingLoadPanel(all,days){days=it}}
         item{BodyPanel(body)}
         item{NutritionPanel(food)}
@@ -569,6 +572,95 @@ internal class ScreenActions(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable private fun DiagnosticsBanner(alerts: List<String>) {
+    Surface(color = Color(0xFFFFF2E2), shape = RoundedCornerShape(18.dp)) {
+        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(Color(0xFFE59B42).copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center) { AppSymbol(8, Color(0xFFE59B42), Modifier.size(19.dp)) }
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                Text("训练提醒", fontWeight = FontWeight.Bold, color = Color(0xFFB46A12))
+                Text(alerts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Ink)
+            }
+        }
+    }
+}
+
+@Composable private fun DiagnosticsPanel(sessions: List<Session>, exercises: List<Exercise>) {
+    val today = LocalDate.now()
+    val risk = remember(sessions) { Diagnostics.loadRisk(sessions, today) }
+    val muscles = remember(sessions, exercises) { Diagnostics.muscleBalance(sessions, exercises, today) }
+    val missing = remember(sessions, exercises) { Diagnostics.missingMuscles(sessions, exercises, today) }
+    val plateaus = remember(sessions, exercises) { Diagnostics.plateaus(sessions, exercises, today) }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("训练诊断", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Panel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("负荷与恢复", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                val (color, label) = when (risk.level) {
+                    RiskLevel.HIGH -> Color(0xFFE5534B) to "偏高"
+                    RiskLevel.ELEVATED -> Color(0xFFE59B42) to "上升快"
+                    RiskLevel.UNDER -> Color(0xFF7C5CE0) to "偏低"
+                    RiskLevel.OK -> Color(0xFF2C8C63) to "平稳"
+                }
+                Text(label, color = color, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(color.copy(alpha = 0.12f))
+                        .padding(horizontal = 9.dp, vertical = 3.dp), style = MaterialTheme.typography.labelMedium)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatTile(number(risk.acuteKg), "本周容量 kg", Modifier.weight(1f))
+                StatTile(number(risk.chronicKg), "周均容量 kg", Modifier.weight(1f))
+                StatTile("%.2f".format(risk.ratio), "急慢比", Modifier.weight(1f), accent = Blue)
+            }
+            Text(risk.advice, color = Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        Panel {
+            Text("本周肌群组数", fontWeight = FontWeight.Bold)
+            if (muscles.isEmpty()) {
+                Text("完成训练后统计每个肌群的正式组数。", color = Muted, style = MaterialTheme.typography.bodySmall)
+            } else {
+                muscles.take(7).forEach { load ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(load.muscle, Modifier.width(46.dp), style = MaterialTheme.typography.bodyMedium)
+                        ShareBar((load.sets / 22f).toFloat(), Modifier.weight(1f).height(8.dp),
+                            color = when (load.status) {
+                                MuscleStatus.LOW -> Color(0xFFE59B42)
+                                MuscleStatus.HIGH -> Color(0xFFE5534B)
+                                MuscleStatus.OK -> Color(0xFF2C8C63)
+                            })
+                        Text("${load.sets} 组", Modifier.width(46.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End, color = Muted,
+                            style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                Text("绿 10–20 组 / 橙 偏少 / 红 偏多（每周每肌群）", color = Muted,
+                    style = MaterialTheme.typography.labelSmall)
+                if (missing.isNotEmpty()) Text("本周未练：${missing.joinToString("、")}",
+                    color = Color(0xFFB46A12), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Panel {
+            Text("平台期", fontWeight = FontWeight.Bold)
+            if (plateaus.isEmpty()) {
+                Text("最近 4 周没有停滞动作，或样本不足 3 次。", color = Muted,
+                    style = MaterialTheme.typography.bodySmall)
+            } else {
+                plateaus.take(4).forEach { p ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(p.name, fontWeight = FontWeight.SemiBold)
+                            Text("${p.sessions} 次训练 · 最佳 1RM 变化 ${"%.1f".format(p.changePercent)}%",
+                                color = Muted, style = MaterialTheme.typography.labelSmall)
+                        }
+                        Text(kg(p.bestOneRm) + " kg", color = Blue, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                Text("建议：换到 6–8 次或 12–15 次区间，或安排一周减载后再冲。", color = Muted,
+                    style = MaterialTheme.typography.bodySmall)
             }
         }
     }
