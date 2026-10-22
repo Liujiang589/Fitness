@@ -69,11 +69,12 @@ class Repository(private val db: LocalDatabase) {
         putSession(Rules.start(p, allExercises(), now))
     }
     private suspend fun putSession(s: Session) = dao.put(SessionRow(s.id, if (s.endedAt == null) 1 else null, Codec.encodeToString(s)))
-    suspend fun changeActive(change: (Session) -> Session) = db.withTransaction {
+    suspend fun changeActive(change: (Session) -> Session): Session = db.withTransaction {
         val before = dao.active()?.let { Codec.decodeFromString<Session>(it.payload) } ?: error("没有进行中的训练")
         val after = change(before)
         require(after.id == before.id)
         putSession(after)
+        after
     }
     suspend fun updateSet(movementId: String, set: TrainingSet) = changeActive { s ->
         require(s.pausedAt == null) { "请先恢复训练" }; Rules.trainingSet(set)
@@ -106,6 +107,14 @@ class Repository(private val db: LocalDatabase) {
         } })
     }
     suspend fun deleteSession(id: String) = dao.deleteSession(id)
+    /** HIIT history lives in the metadata table, so no Room schema migration is needed. */
+    suspend fun hiitRuns(): List<HiitRun> =
+        dao.metadata(KEY_HIIT_RUNS)?.let { Codec.decodeFromString<List<HiitRun>>(it) } ?: emptyList()
+    suspend fun addHiitRun(r: HiitRun) {
+        Rules.hiitRun(r)
+        val runs = (hiitRuns() + r).takeLast(MAX_HIIT_RUNS)
+        dao.put(MetaRow(KEY_HIIT_RUNS, Codec.encodeToString(runs)))
+    }
     suspend fun saveBody(x: Body) { Rules.body(x); dao.put(BodyRow(x.id, Codec.encodeToString(x))) }
     suspend fun saveFood(x: Food) { Rules.food(x); dao.put(FoodRow(x.id, Codec.encodeToString(x))) }
     suspend fun saveWater(x: Water) { Rules.water(x); dao.put(WaterRow(x.id, Codec.encodeToString(x))) }
@@ -133,5 +142,9 @@ class Repository(private val db: LocalDatabase) {
             b.water.forEach { dao.put(WaterRow(it.id, Codec.encodeToString(it))) }
             dao.put(MetaRow("initialized", "1"))
         }
+    }
+    private companion object {
+        const val KEY_HIIT_RUNS = "hiit-runs"
+        const val MAX_HIIT_RUNS = 200
     }
 }

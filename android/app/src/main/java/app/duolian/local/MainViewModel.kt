@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.duolian.local.domain.*
+import app.duolian.local.timer.TimerService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -24,12 +25,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val food = repo.food.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val water = repo.water.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val rest = owner.restSeconds.stateIn(viewModelScope, SharingStarted.Eagerly, 60)
+    val hiitRuns = MutableStateFlow<List<HiitRun>>(emptyList())
     val ready = MutableStateFlow(false)
     val busy = MutableStateFlow(false)
     val message = MutableStateFlow<String?>(null)
     val pendingImport = MutableStateFlow<Backup?>(null)
     private val operationLock = Mutex()
-    init { act { repo.initialize(); ready.value = true } }
+    init { act { repo.initialize(); hiitRuns.value = repo.hiitRuns(); ready.value = true } }
     fun act(job: suspend () -> Unit) {
         viewModelScope.launch {
             operationLock.withLock {
@@ -45,9 +47,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val active = sessions.value.firstOrNull { it.endedAt == null }
         val fallback = active?.planId?.let { planId -> plans.value.firstOrNull { it.id == planId }?.restSeconds }
             ?.takeIf { it > 0 } ?: rest.value
-        repo.changeActive { Rules.complete(it, m, s, fallback, System.currentTimeMillis()) }
+        val after = repo.changeActive { Rules.complete(it, m, s, fallback, System.currentTimeMillis()) }
+        syncRestTimer(after)
     }
     fun addDrop(movementId: String) = act { repo.addDropSet(movementId) }
+    fun skipRest() = act {
+        repo.changeActive { it.copy(restDeadline = null, restRemainingMs = 0) }
+        TimerService.stop(getApplication())
+    }
+    /** Keeps the foreground notification in sync with the session's rest deadline. */
+    private fun syncRestTimer(s: Session) {
+        val deadline = s.restDeadline
+        if (s.pausedAt == null && deadline != null && deadline > System.currentTimeMillis())
+            TimerService.startRest(getApplication(), deadline)
+        else TimerService.stop(getApplication())
+    }
+    fun startHiitTimer(template: HiitTemplate) = TimerService.startHiit(getApplication(), template)
+    fun stopTimer() = TimerService.stop(getApplication())
+    fun saveHiitRun(run: HiitRun) = act { repo.addHiitRun(run); hiitRuns.value = repo.hiitRuns() }
     /** Applies a progression suggestion to the exercise's default weight for future sessions. */
     fun applySuggestion(exercise: Exercise, deltaGrams: Long) = act {
         val updated = exercise.copy(defaultGrams = (exercise.defaultGrams + deltaGrams).coerceIn(0, 1_000_000))
@@ -55,10 +72,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repo.saveExercise(updated)
         message.value = "已把「${updated.name}」默认重量调整为 ${kg(updated.defaultGrams)} kg"
     }
-    fun togglePause() = act { repo.changeActive { s ->
-        val now = System.currentTimeMillis(); if (s.pausedAt == null) Rules.pause(s, now) else Rules.resume(s, now)
-    } }
-    fun finish() = act { repo.changeActive { Rules.finish(it, System.currentTimeMillis()) } }
+    fun togglePause() = act {
+        val s = repo.changeActive { session ->
+            val now = System.currentTimeMillis()
+            if (session.pausedAt == null) Rules.pause(session, now) else Rules.resume(session, now)
+        }
+        syncRestTimer(s)
+    }
+    fun finish() = act {
+        repo.changeActive { Rules.finish(it, System.currentTimeMillis()) }
+        TimerService.stop(getApplication())
+    }
     fun export(uri: Uri) = act {
         val json = Codec.encodeToString(repo.snapshot(rest.value))
         require(json.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) { "数据超过4MiB，本版备份大小上限需先扩展" }

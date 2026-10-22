@@ -147,6 +147,19 @@ object Rules {
         require(listOf(x.protein, x.carbs, x.fat).all { it.isFinite() && it in 0.0..1000.0 }) { "营养素需为0–1000g" }
     }
     fun water(x: Water) { id(x.id); date(x.date); require(x.ml in 1..10000) { "饮水量需为1–10000ml" } }
+    fun hiitTemplate(t: HiitTemplate) {
+        label(t.name)
+        require(t.prepareSeconds in 0..60) { "准备时间需为0–60秒" }
+        require(t.workSeconds in 5..600) { "训练时间需为5–600秒" }
+        require(t.restSeconds in 0..600) { "休息时间需为0–600秒" }
+        require(t.rounds in 1..100) { "轮数需为1–100" }
+    }
+    fun hiitRun(r: HiitRun) {
+        label(r.name)
+        require(r.startedAt in 1..MAX_TIME && r.endedAt in r.startedAt..MAX_TIME) { "时间戳无效" }
+        require(r.completedRounds in 0..r.rounds) { "完成轮数无效" }
+        require(r.workSeconds in 5..600 && r.restSeconds in 0..600 && r.rounds in 1..100) { "记录参数无效" }
+    }
     fun backup(b: Backup) {
         require(b.format == "duolian-native" && b.version in 1..2) { "不兼容此备份格式；预览版和原版备份暂不支持" }
         require(b.restSeconds in 0..600)

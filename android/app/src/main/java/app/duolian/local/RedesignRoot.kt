@@ -1,5 +1,8 @@
 package app.duolian.local
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,6 +42,14 @@ private data class Confirmation(val title:String,val action:()->Unit)
     val rest by vm.rest.collectAsStateWithLifecycle();val ready by vm.ready.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle();val message by vm.message.collectAsStateWithLifecycle()
     val pending by vm.pendingImport.collectAsStateWithLifecycle()
+    val hiitRuns by vm.hiitRuns.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
     var tab by rememberSaveable{mutableIntStateOf(0)};var nutrition by rememberSaveable{mutableStateOf(false)}
     var exerciseForm by remember{mutableStateOf(false)};var editExercise by remember{mutableStateOf<Exercise?>(null)}
     var planForm by remember{mutableStateOf(false)};var editPlan by remember{mutableStateOf<Plan?>(null)}
@@ -77,7 +89,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
             if(!busy)Button(onClick={vm.act{vm.repo.initialize();vm.ready.value=true}}){Text("重试")}
         }} else when(tab){
             0->if(nutrition)NutritionPage(food,water,vm,a)else TrainingPage(vm,exercises,plans,sessions,food,water,busy,a)
-            1->ToolsPage(sessions)
+            1->ToolsPage(sessions,vm,hiitRuns)
             2->ExercisePage(exercises,a)
             3->HistoryPage(sessions,exercises,plans,vm,a)
             else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("Duolian-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("Duolian-before-import.json")})
