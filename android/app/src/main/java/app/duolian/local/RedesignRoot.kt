@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -78,11 +79,44 @@ private data class Confirmation(val title:String,val action:()->Unit)
         food={editFood=it;auxiliary="food"},ask=ask,nutrition={tab=0;nutrition=true})
     val labels=listOf("训练","工具","动作","历史","我的")
     val icons=listOf(0,1,2,3,4)
+    var quickMenu by remember{mutableStateOf(false)}
     Scaffold(containerColor=Page,snackbarHost={SnackbarHost(snackbar)},bottomBar={
-        Surface(shadowElevation=12.dp,color=Color.White,shape=RoundedCornerShape(topStart=24.dp,topEnd=24.dp)){
-            NavigationBar(containerColor=Color.White,tonalElevation=0.dp){labels.forEachIndexed{i,label->NavigationBarItem(selected=tab==i,onClick={tab=i},
-                icon={AppSymbol(icons[i],if(tab==i)Blue else Muted)},label={Text(label,fontWeight=if(tab==i)FontWeight.Bold else FontWeight.Normal)},
-                colors=NavigationBarItemDefaults.colors(indicatorColor=PaleBlue,selectedTextColor=Blue,unselectedTextColor=Muted))}}
+        Row(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically){
+            Surface(shape=RoundedCornerShape(30.dp),color=Color.White,shadowElevation=10.dp,modifier=Modifier.weight(1f)){
+                Row(Modifier.padding(horizontal=6.dp,vertical=6.dp)){
+                    labels.forEachIndexed{i,label->
+                        val selected=tab==i
+                        Column(Modifier.weight(1f).clip(RoundedCornerShape(24.dp))
+                            .then(if(selected)Modifier.background(PaleBlue) else Modifier)
+                            .clickable{tab=i}.padding(vertical=7.dp),
+                            horizontalAlignment=Alignment.CenterHorizontally){
+                            AppSymbol(icons[i],if(selected)Blue else Muted,Modifier.size(21.dp))
+                            Spacer(Modifier.height(3.dp))
+                            Text(label,style=MaterialTheme.typography.labelSmall,color=if(selected)Blue else Muted,
+                                fontWeight=if(selected)FontWeight.Bold else FontWeight.Normal)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Box{
+                Box(Modifier.size(62.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Blue)
+                    .clickable{quickMenu=true},contentAlignment=Alignment.Center){
+                    Column(horizontalAlignment=Alignment.CenterHorizontally){
+                        Text("训练",color=Color.White,style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.Bold)
+                        Text("记录",color=Color.White,style=MaterialTheme.typography.labelSmall)
+                    }
+                }
+                DropdownMenu(expanded=quickMenu,onDismissRequest={quickMenu=false}){
+                    DropdownMenuItem(text={Text("开始训练")},onClick={
+                        quickMenu=false;tab=0
+                        val plan=plans.firstOrNull()
+                        if(plan!=null)vm.act{vm.repo.start(plan.id)} else a.plan(null)
+                    })
+                    DropdownMenuItem(text={Text("记录饮食")},onClick={quickMenu=false;tab=0;nutrition=true})
+                    DropdownMenuItem(text={Text("记录体重")},onClick={quickMenu=false;a.body(null)})
+                }
+            }
         }
     }){padding->Column(Modifier.fillMaxSize().padding(padding)){
         Row(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=18.dp),verticalAlignment=Alignment.CenterVertically){
@@ -157,23 +191,23 @@ private data class Confirmation(val title:String,val action:()->Unit)
         items(body,key={it.id}){b->Panel{Row{Column(Modifier.weight(1f)){Text("${kg(b.grams)} kg",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text("${b.date}  ${b.fatPercent?.let{"体脂 ${number(it)}%"}?:""}",color=Muted,style=MaterialTheme.typography.bodySmall)};TextButton(onClick={a.body(b)}){Text("编辑")};TextButton(onClick={a.ask("删除此身体记录？"){vm.act{vm.repo.deleteBody(b.id)}}}){Text("删除",color=Muted)}}}}
         item{Section("训练设置")}
         item{GroupCard{
-            SettingRow("默认组间休息","组间与 HIIT 计时会显示在通知栏",trailing="${rest} 秒"){a.auxiliary("rest")}
+            IconSettingRow(1,Blue,"默认组间休息","组间与 HIIT 计时会显示在通知栏",trailing="${rest} 秒"){a.auxiliary("rest")}
         }}
         item{Section("数据与备份")}
         item{GroupCard{
-            SettingRow("导出全部数据","duolian-native v2 · JSON",enabled=!busy,onClick=export)
+            IconSettingRow(0,Color(0xFF2C8C63),"导出全部数据","duolian-native v2 · JSON",enabled=!busy,onClick=export)
             HorizontalDivider(color=Page)
-            SettingRow("导入备份","支持 v1 / v2，导入前自动留快照",enabled=!busy,onClick=import)
+            IconSettingRow(0,Blue,"导入备份","支持 v1 / v2，导入前自动留快照",enabled=!busy,onClick=import)
             HorizontalDivider(color=Page)
-            SettingRow("导入前备份","最近一次导入前的恢复文件",onClick=recovery)
+            IconSettingRow(0,Color(0xFFE59B42),"导入前备份","最近一次导入前的恢复文件",onClick=recovery)
             HorizontalDivider(color=Page)
-            SettingRow("自动备份",
+            IconSettingRow(0,Color(0xFF7C5CE0),"自动备份",
                 if(autoBackupAt==null)"每日首次打开自动备份（上限 8 MiB）" else "上次 ${stamp(autoBackupAt)}",
                 onClick=autoBackup)
         }}
         item{Section("关于")}
         item{GroupCard{
-            SettingRow("独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.5.1（7）")
+            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.7.0（9）")
         }}
     }
 }

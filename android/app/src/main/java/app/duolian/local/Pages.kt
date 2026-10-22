@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,15 +50,25 @@ internal class ScreenActions(
             Text("详细 ›", color = Blue, style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.clickable { a.nutrition() })
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MacroRing(protein, carbs, fat, Modifier.size(104.dp))
-            Column(Modifier.weight(1f).padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("${number(fs.sumOf { it.calories })} kcal", style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold)
-                Text("蛋白 ${number(protein)} g · 碳水 ${number(carbs)} g", color = Muted,
-                    style = MaterialTheme.typography.bodySmall)
-                Text("脂肪 ${number(fat)} g · 饮水 $ml ml", color = Muted,
-                    style = MaterialTheme.typography.bodySmall)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("已摄入 ", color = Muted, style = MaterialTheme.typography.labelMedium)
+            Text("${number(fs.sumOf { it.calories })}", style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold)
+            Text(" kcal", color = Muted, style = MaterialTheme.typography.labelMedium)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val tiles = listOf(
+                Triple("蛋白 (g)", number(protein), Color(0xFFFFF6E8)),
+                Triple("碳水 (g)", number(carbs), Color(0xFFEEF1FF)),
+                Triple("脂肪 (g)", number(fat), Color(0xFFFFEEF1)),
+                Triple("饮水 (ml)", ml.toString(), Color(0xFFE9F8FA)))
+            tiles.forEach { (label, value, tint) ->
+                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(tint).padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(label, color = Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    Spacer(Modifier.height(4.dp))
+                    Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                }
             }
         }
         HorizontalDivider(color = Page)
@@ -234,9 +245,12 @@ internal class ScreenActions(
     body: List<Body>, food: List<Food>, vm: MainViewModel,a: ScreenActions){
     var range by rememberSaveable{mutableStateOf("全部")};var selected by rememberSaveable{mutableStateOf<String?>(null)}
     var days by rememberSaveable{mutableStateOf(30)}
+    var month by remember{mutableStateOf(java.time.YearMonth.now())}
+    var picked by remember{mutableStateOf<LocalDate?>(null)}
     val all=sessions.filter{it.endedAt!=null}.sortedByDescending{it.startedAt}
-    val history=all.filter{range=="全部"||Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()>=LocalDate.now().minusDays(if(range=="近7天")6 else 29)}
+    val history=all.filter{(picked==null||Analytics.dateOf(it)==picked)&&(range=="全部"||Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()>=LocalDate.now().minusDays(if(range=="近7天")6 else 29))}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+        item{CalendarCard(all,month,{month=it},picked){ d -> picked = if(picked==d) null else d }}
         item{TrainingLoadPanel(all,days){days=it}}
         item{BodyPanel(body)}
         item{NutritionPanel(food)}
@@ -424,5 +438,57 @@ internal class ScreenActions(
         }
         Text("1RM 为估算值，仅用于比较同一动作的进步。", color = Muted,
             style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable private fun CalendarCard(sessions: List<Session>, month: java.time.YearMonth,
+    onMonth: (java.time.YearMonth) -> Unit, picked: LocalDate?, onPick: (LocalDate) -> Unit) {
+    val trained = remember(sessions) { sessions.map { Analytics.dateOf(it) }.toSet() }
+    val offset = (month.atDay(1).dayOfWeek.value + 6) % 7
+    val cells: List<LocalDate?> = List(offset) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { onMonth(month.minusMonths(1)) }, contentPadding = PaddingValues(8.dp)) { Text("‹") }
+            Text("${month.year} 年 ${month.monthValue} 月", Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontWeight = FontWeight.Bold)
+            TextButton(onClick = { onMonth(month.plusMonths(1)) }, contentPadding = PaddingValues(8.dp)) { Text("›") }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            listOf("一", "二", "三", "四", "五", "六", "日").forEach {
+                Text(it, Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = Muted, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+        cells.chunked(7).forEach { week ->
+            Row(Modifier.fillMaxWidth()) {
+                week.forEach { day ->
+                    Box(Modifier.weight(1f).aspectRatio(1f).padding(2.dp), contentAlignment = Alignment.Center) {
+                        if (day != null) {
+                            val isTrained = day in trained
+                            val isPicked = day == picked
+                            Box(Modifier.fillMaxSize().clip(CircleShape)
+                                .background(when { isPicked -> Blue; isTrained -> PaleBlue; else -> Color.Transparent })
+                                .clickable { onPick(day) }, contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("${day.dayOfMonth}", style = MaterialTheme.typography.bodySmall,
+                                        color = when { isPicked -> Color.White; isTrained -> Blue; else -> Muted },
+                                        fontWeight = if (isPicked || isTrained) FontWeight.Bold else FontWeight.Normal)
+                                    if (isTrained && !isPicked)
+                                        Box(Modifier.size(3.dp).clip(CircleShape).background(Blue))
+                                }
+                            }
+                        }
+                    }
+                }
+                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        if (picked != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${picked.monthValue} 月 ${picked.dayOfMonth} 日 · ${sessions.count { Analytics.dateOf(it) == picked }} 次训练",
+                    color = Blue, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onPick(picked) }) { Text("查看全部") }
+            }
+        }
     }
 }

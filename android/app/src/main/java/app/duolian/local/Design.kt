@@ -91,6 +91,8 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
             7 -> { drawRoundRect(color,Offset(w*.16f,h*.14f),Size(w*.68f,h*.74f),CornerRadius(w*.09f),style=Stroke(s));
                 drawRoundRect(color,Offset(w*.26f,h*.24f),Size(w*.48f,h*.18f),CornerRadius(w*.03f),style=Stroke(s));
                 listOf(.3f,.5f,.7f).forEach{x->line(x,.62f,x,.76f)};listOf(.3f,.5f,.7f).forEach{x->line(x,.84f,x,.84f)} }
+            8 -> { drawCircle(color,w*.34f,Offset(w*.5f,h*.5f),style=Stroke(s));
+                drawCircle(color,w*.035f,Offset(w*.5f,h*.33f));line(.5f,.46f,.5f,.68f) }
             else -> {line(.5f,.2f,.5f,.8f);line(.2f,.5f,.8f,.5f)}
         }
     }
@@ -237,23 +239,23 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
     }
 }
 
-/** Settings row with optional value and chevron. */
-@Composable internal fun SettingRow(title: String, subtitle: String? = null, trailing: String? = null,
-    enabled: Boolean = true, onClick: (() -> Unit)? = null) {
+/** Settings row with a coloured icon chip, optional value and chevron. */
+@Composable internal fun IconSettingRow(symbol: Int, tint: Color, title: String, subtitle: String? = null,
+    trailing: String? = null, enabled: Boolean = true, onClick: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth()
         .then(if (onClick != null && enabled) Modifier.clickable { onClick() } else Modifier)
-        .padding(horizontal = 16.dp, vertical = 14.dp),
+        .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(tint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center) { AppSymbol(symbol, tint, Modifier.size(19.dp)) }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(title, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge,
                 color = if (enabled) Ink else Muted)
-            subtitle?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
+            subtitle?.let { Text(it, color = Muted, style = MaterialTheme.typography.labelSmall) }
         }
-        trailing?.let {
-            Text(it, color = Muted, style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 8.dp))
-        }
+        trailing?.let { Text(it, color = Muted, style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(start = 8.dp)) }
         if (onClick != null) Text("›", color = Muted, style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(start = 8.dp))
+            modifier = Modifier.padding(start = 6.dp))
     }
 }
