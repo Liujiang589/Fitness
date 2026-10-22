@@ -7,18 +7,22 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,10 +42,11 @@ import java.util.Locale
     var values by remember { mutableStateOf(fields.map { it.second }) }
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = dismiss, title = { Text(title) }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            fields.forEachIndexed { i, f -> OutlinedTextField(values[i], { v -> values = values.toMutableList().also { it[i] = v } },
-                label = { Text(f.first) }, modifier = Modifier.fillMaxWidth()) }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            fields.forEachIndexed { i, f ->
+                AppField(values[i], { v -> values = values.toMutableList().also { it[i] = v } }, f.first)
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }, confirmButton = { TextButton(onClick = { runCatching { save(values) }.onSuccess { dismiss() }
         .onFailure { error = it.message ?: "输入无效" } }) { Text("保存") } },
@@ -50,7 +55,7 @@ import java.util.Locale
 @Composable internal fun ExerciseForm(e: Exercise?, dismiss: () -> Unit, save: (Exercise) -> Unit) {
     FieldsDialog(if (e == null) "新增动作" else "编辑动作", listOf("名称" to (e?.name ?: ""),
         "肌群" to (e?.muscle ?: "胸部"), "器械" to (e?.equipment ?: "徒手"),
-        "默认重量 kg" to kg(e?.defaultGrams ?: 0), "动作说明" to (e?.notes ?: "")), dismiss) { v ->
+        "默认重量（kg）" to kg(e?.defaultGrams ?: 0), "动作说明" to (e?.notes ?: "")), dismiss) { v ->
         // Keep favourite state and any attached photo when only the text fields change.
         val x = e?.copy(name = v[0].trim(), muscle = v[1].trim(), equipment = v[2].trim(),
             defaultGrams = Rules.parseKg(v[3]), notes = v[4])
@@ -66,28 +71,30 @@ import java.util.Locale
     var rest by remember { mutableStateOf(x.restSeconds?.toString() ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = dismiss, title = { Text("编辑这一组") }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(weight, { weight = it }, label = { Text("重量 kg") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                OutlinedTextField(reps, { reps = it }, label = { Text("次数") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppField(weight, { weight = it }, "重量", Modifier.weight(1f), suffix = "kg",
+                    keyboardType = KeyboardType.Decimal)
+                AppField(reps, { reps = it }, "次数", Modifier.weight(1f), suffix = "次",
+                    keyboardType = KeyboardType.Number)
             }
-            Text("组类型", style = MaterialTheme.typography.labelMedium, color = Muted)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                SetKind.entries.forEach { k ->
-                    FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.short) })
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                FieldLabel("组类型")
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SetKind.entries.forEach { k ->
+                        ChoicePill(k.short, kind == k, { kind = k })
+                    }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(rpe, { rpe = it }, label = { Text("RPE 5–10") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(rest, { rest = it }, label = { Text("本组休息 秒") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppField(rpe, { rpe = it }, "RPE（可空）", Modifier.weight(1f), placeholder = "5–10",
+                    keyboardType = KeyboardType.Number)
+                AppField(rest, { rest = it }, "本组休息（可空）", Modifier.weight(1f), suffix = "秒",
+                    keyboardType = KeyboardType.Number)
             }
-            Text("RPE 10 表示当次力竭，留空即可不记录；本组休息留空则用计划或全局设置。",
-                style = MaterialTheme.typography.bodySmall, color = Muted)
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Text("RPE 10 表示当次力竭；休息留空则沿用计划或全局设置。", color = Muted,
+                style = MaterialTheme.typography.bodySmall)
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }, confirmButton = { TextButton(onClick = { runCatching {
         val set = x.copy(grams = Rules.parseKg(weight), reps = reps.toInt(),
@@ -108,35 +115,63 @@ import java.util.Locale
     var error by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = dismiss, title = { Text(if (p == null) "创建计划" else "编辑计划") }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(name, { name = it }, label = { Text("计划名称") })
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(sets, { sets = it }, label = { Text("默认组数") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(reps, { reps = it }, label = { Text("默认次数") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(rest, { rest = it }, label = { Text("休息 秒") }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            AppField(name, { name = it }, "计划名称", placeholder = "例如 上肢推 / 全身基础")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppField(sets, { sets = it }, "组数", Modifier.weight(1f), suffix = "组",
+                    keyboardType = KeyboardType.Number)
+                AppField(reps, { reps = it }, "次数", Modifier.weight(1f), suffix = "次",
+                    keyboardType = KeyboardType.Number)
+                AppField(rest, { rest = it }, "休息", Modifier.weight(1f), suffix = "秒",
+                    keyboardType = KeyboardType.Number)
             }
-            Text("训练方案", style = MaterialTheme.typography.labelMedium, color = Muted)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                SetScheme.entries.forEach { s -> FilterChip(selected = scheme == s, onClick = { scheme = s }, label = { Text(s.label) }) }
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                FieldLabel("训练方案")
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SetScheme.entries.forEach { s -> ChoicePill(s.label, scheme == s, { scheme = s }) }
+                }
             }
-            Text("动作编排", style = MaterialTheme.typography.labelMedium, color = Muted)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                SupersetMode.entries.forEach { s -> FilterChip(selected = superset == s, onClick = { superset = s }, label = { Text(s.label) }) }
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                FieldLabel("动作编排")
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SupersetMode.entries.forEach { s -> ChoicePill(s.label, superset == s, { superset = s }) }
+                }
             }
-            Text("金字塔按组自动增减 5% 重量；递减组按 80% 追加组；超级组组间只休息 ${Rules.SupersetRestSeconds} 秒。",
-                style = MaterialTheme.typography.bodySmall, color = Muted)
-            Text("已选 ${ids.size} 个动作 · 按训练顺序")
-            ids.forEachIndexed { index, id -> Row {
-                Text("${index + 1}. ${exercises.find { it.id == id }?.name ?: "已删除动作"}", Modifier.weight(1f))
-                TextButton(enabled = index > 0, onClick = { ids = ids.toMutableList().also { val old = it[index - 1]; it[index - 1] = id; it[index] = old } }) { Text("上移") }
-                TextButton(onClick = { ids = ids - id }) { Text("移除") }
-            } }
-            Text("选择动作")
-            OutlinedTextField(query, { query = it }, label = { Text("搜索动作 / 肌群 / 器械") }, singleLine = true)
-            exercises.filter { query.isBlank() || it.name.contains(query, true) || it.muscle.contains(query, true) || it.equipment.contains(query, true) }.forEach { e -> Row {
-                Checkbox(e.id in ids, { checked -> ids = if (checked) ids + e.id else ids - e.id }); Text(e.name)
-            } }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (ids.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FieldLabel("已选动作 · 按训练顺序")
+                    ids.forEachIndexed { index, id ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Page)
+                            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text("%02d".format(index + 1), color = Blue, fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(28.dp))
+                            Text(exercises.find { it.id == id }?.name ?: "已删除动作",
+                                Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            TextButton(enabled = index > 0, contentPadding = PaddingValues(horizontal = 8.dp),
+                                onClick = { ids = ids.toMutableList().also { val old = it[index - 1]; it[index - 1] = id; it[index] = old } }) {
+                                Text("上移", style = MaterialTheme.typography.labelSmall)
+                            }
+                            TextButton(contentPadding = PaddingValues(horizontal = 8.dp),
+                                onClick = { ids = ids - id }) {
+                                Text("移除", color = Muted, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+            AppField(query, { query = it }, "添加动作", placeholder = "搜索名称 / 肌群 / 器械")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                exercises.filter {
+                    query.isBlank() || it.name.contains(query, true) || it.muscle.contains(query, true) ||
+                        it.equipment.contains(query, true)
+                }.take(12).forEach { e ->
+                    SelectRow(e.name, "${e.muscle} · ${e.equipment}", e.id in ids) {
+                        ids = if (e.id in ids) ids - e.id else ids + e.id
+                    }
+                }
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }, confirmButton = { TextButton(onClick = { runCatching {
         val plan = Plan(p?.id ?: newId(), name.trim(), ids, sets.toInt(), reps.toInt(),

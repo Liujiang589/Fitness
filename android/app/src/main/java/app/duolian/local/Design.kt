@@ -1,25 +1,34 @@
 package app.duolian.local
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.ZoneId
@@ -131,5 +140,80 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
         line(.7f,if(upper).13f else .34f,.86f,if(upper).13f else .34f,Blue)
         line(.15f,if(upper).08f else .29f,.15f,if(upper).18f else .39f,Blue)
         line(.85f,if(upper).08f else .29f,.85f,if(upper).18f else .39f,Blue)
+    }
+}
+
+/** Small caption that sits above a field, so the box itself only holds the value. */
+@Composable internal fun FieldLabel(text: String, modifier: Modifier = Modifier) {
+    Text(text, modifier, color = Muted, style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Medium)
+}
+
+/**
+ * Filled, rounded input used by every form: no outline box, unit shown inside,
+ * focus tinted instead of using Material's underline.
+ */
+@Composable internal fun AppField(value: String, onValueChange: (String) -> Unit, label: String = "",
+    modifier: Modifier = Modifier, placeholder: String = "", suffix: String? = null,
+    keyboardType: KeyboardType = KeyboardType.Text, singleLine: Boolean = true) {
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (label.isNotBlank()) FieldLabel(label)
+        Surface(shape = RoundedCornerShape(15.dp),
+            color = if (focused) Color.White else Page,
+            border = BorderStroke(1.5.dp, if (focused) Blue else Color(0xFFE7ECF3)),
+            modifier = Modifier.fillMaxWidth()) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = singleLine,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink, fontWeight = FontWeight.SemiBold),
+                cursorBrush = SolidColor(Blue),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+                decorationBox = { inner ->
+                    Row(Modifier.padding(horizontal = 15.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) {
+                            if (value.isEmpty() && placeholder.isNotEmpty())
+                                Text(placeholder, color = Muted, style = MaterialTheme.typography.bodyLarge)
+                            inner()
+                        }
+                        suffix?.let {
+                            Text(it, color = Muted, style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                })
+        }
+    }
+}
+
+/** Solid pill used for mutually exclusive choices (scheme, set type, superset mode). */
+@Composable internal fun ChoicePill(text: String, selected: Boolean, onClick: () -> Unit,
+    modifier: Modifier = Modifier, accent: Color = Blue) {
+    Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(13.dp),
+        color = if (selected) accent else Color.White,
+        border = if (selected) null else BorderStroke(1.dp, Color(0xFFE7ECF3))) {
+        Text(text, Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
+            color = if (selected) Color.White else Ink,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            style = MaterialTheme.typography.labelLarge, maxLines = 1)
+    }
+}
+
+/** Row used for pickable lists (plan exercises): whole row tappable, check on the right. */
+@Composable internal fun SelectRow(title: String, subtitle: String? = null, selected: Boolean,
+    modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
+        color = if (selected) PaleBlue else Color.White) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyLarge)
+                subtitle?.let { Text(it, color = Muted, style = MaterialTheme.typography.labelSmall) }
+            }
+            if (selected) Text("✓", color = Blue, fontWeight = FontWeight.Bold)
+        }
     }
 }

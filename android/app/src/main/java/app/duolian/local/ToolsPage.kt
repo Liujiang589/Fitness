@@ -202,17 +202,17 @@ private fun mmss(ms: Long): String {
                 TextButton(onClick = { custom = !custom }) { Text(if (custom) "收起" else "自定义") }
             }
             if (custom) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(work, { work = it }, label = { Text("训练 s") }, singleLine = true,
-                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(rest, { rest = it }, label = { Text("休息 s") }, singleLine = true,
-                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AppField(work, { work = it }, "训练时间", Modifier.weight(1f), suffix = "秒",
+                        keyboardType = KeyboardType.Number)
+                    AppField(rest, { rest = it }, "休息时间", Modifier.weight(1f), suffix = "秒",
+                        keyboardType = KeyboardType.Number)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(rounds, { rounds = it }, label = { Text("轮数") }, singleLine = true,
-                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(prepare, { prepare = it }, label = { Text("准备 s") }, singleLine = true,
-                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AppField(rounds, { rounds = it }, "轮数", Modifier.weight(1f), suffix = "轮",
+                        keyboardType = KeyboardType.Number)
+                    AppField(prepare, { prepare = it }, "准备时间", Modifier.weight(1f), suffix = "秒",
+                        keyboardType = KeyboardType.Number)
                 }
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

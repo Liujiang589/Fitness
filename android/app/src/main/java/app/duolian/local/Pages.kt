@@ -141,7 +141,7 @@ internal class ScreenActions(
         .sortedWith(compareByDescending<Exercise>{it.favorite}.thenBy{it.name})
     Column(Modifier.fillMaxSize()){
         Row(Modifier.padding(horizontal=18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
-            OutlinedTextField(query,{query=it},placeholder={Text("搜索动作名称",color=Muted)},singleLine=true,modifier=Modifier.weight(1f),shape=RoundedCornerShape(18.dp),colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=Color.Transparent,focusedBorderColor=Blue,unfocusedContainerColor=Color.White))
+            AppField(query,{query=it},placeholder="搜索动作名称",modifier=Modifier.weight(1f))
             FilledIconButton(onClick={a.exercise(null)},modifier=Modifier.size(50.dp),shape=RoundedCornerShape(17.dp)){Text("＋",style=MaterialTheme.typography.headlineMedium)}
         }
         Spacer(Modifier.height(14.dp))
