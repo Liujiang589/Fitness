@@ -99,6 +99,8 @@ internal class ScreenActions(
         else {
             item { NutritionSummary(food, water, LocalDate.now().toString(), a) }
             item { WeekStrip(history) }
+            item { ScheduleCard(plans, active, busy, vm) }
+            item { TemplateLibrary(vm) }
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -488,6 +490,85 @@ internal class ScreenActions(
                 Text("${picked.monthValue} 月 ${picked.dayOfMonth} 日 · ${sessions.count { Analytics.dateOf(it) == picked }} 次训练",
                     color = Blue, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = { onPick(picked) }) { Text("查看全部") }
+            }
+        }
+    }
+}
+
+@Composable private fun ScheduleCard(plans: List<Plan>, active: Session?, busy: Boolean, vm: MainViewModel) {
+    val today = LocalDate.now()
+    val dow = today.dayOfWeek.value
+    val names = listOf("一", "二", "三", "四", "五", "六", "日")
+    val todayPlans = plans.filter { dow in it.weekdays }
+    val upcoming = (1..7).map { today.plusDays(it.toLong()) }
+        .map { d -> d to plans.filter { d.dayOfWeek.value in it.weekdays } }
+        .filter { it.second.isNotEmpty() }.take(3)
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("今日安排", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f))
+            Text("${today.monthValue}/${today.dayOfMonth} 周${names[dow - 1]}", color = Muted,
+                style = MaterialTheme.typography.labelMedium)
+        }
+        if (todayPlans.isEmpty()) {
+            Text("今天没有排期。给计划设一个重复日，或从下面的模板开始。", color = Muted,
+                style = MaterialTheme.typography.bodyMedium)
+        } else {
+            todayPlans.forEach { p ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(PaleBlue),
+                        contentAlignment = Alignment.Center) { AppSymbol(2, Blue, Modifier.size(20.dp)) }
+                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text(p.name, fontWeight = FontWeight.SemiBold)
+                        Text("${p.exerciseIds.size} 个动作 · ${p.sets} 组 × ${p.reps} 次", color = Muted,
+                            style = MaterialTheme.typography.labelSmall)
+                    }
+                    Button(enabled = active == null && !busy, onClick = { vm.act { vm.repo.start(p.id) } },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) { Text("开始") }
+                }
+            }
+        }
+        if (upcoming.isNotEmpty()) {
+            HorizontalDivider(color = Page)
+            Text("即将到来", color = Muted, style = MaterialTheme.typography.labelMedium)
+            upcoming.forEach { (d, ps) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${d.monthValue}/${d.dayOfMonth} 周${names[d.dayOfWeek.value - 1]}",
+                        color = Muted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(88.dp))
+                    Text(ps.joinToString(" · ") { it.name }, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun TemplateLibrary(vm: MainViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("计划模板", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f))
+            Text("${Templates.all.size} 套 · 点击即加入", color = Muted, style = MaterialTheme.typography.labelMedium)
+        }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Templates.all.forEach { t ->
+                Surface(shape = RoundedCornerShape(18.dp), color = Color.White, modifier = Modifier.width(186.dp)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(t.level, color = Blue, style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold)
+                        Text(t.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1)
+                        Text(t.subtitle, color = Muted, style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1)
+                        Text("${t.exercises.size} 动作 · ${t.sets}×${t.reps}", color = Muted,
+                            style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.height(4.dp))
+                        Button(onClick = { vm.applyTemplate(t) }, modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(11.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+                            Text("使用", style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
             }
         }
     }

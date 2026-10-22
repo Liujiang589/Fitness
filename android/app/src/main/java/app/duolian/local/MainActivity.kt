@@ -112,6 +112,7 @@ import java.util.Locale
     var scheme by remember { mutableStateOf(p?.scheme ?: SetScheme.STRAIGHT) }
     var superset by remember { mutableStateOf(p?.superset ?: SupersetMode.NONE) }
     var rest by remember { mutableStateOf((p?.restSeconds ?: 0).toString()) }
+    var weekdays by remember { mutableStateOf(p?.weekdays ?: emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = dismiss, title = { Text(if (p == null) "创建计划" else "编辑计划") }, text = {
@@ -135,6 +136,17 @@ import java.util.Locale
                 FieldLabel("动作编排")
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SupersetMode.entries.forEach { s -> ChoicePill(s.label, superset == s, { superset = s }) }
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                FieldLabel("排期（可选，用于首页「今日安排」）")
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { i, label ->
+                        val day = i + 1
+                        ChoicePill(label, day in weekdays, {
+                            weekdays = if (day in weekdays) weekdays - day else weekdays + day
+                        })
+                    }
                 }
             }
             if (ids.isNotEmpty()) {
@@ -175,7 +187,7 @@ import java.util.Locale
         }
     }, confirmButton = { TextButton(onClick = { runCatching {
         val plan = Plan(p?.id ?: newId(), name.trim(), ids, sets.toInt(), reps.toInt(),
-            scheme, rest.toInt(), superset)
+            scheme, rest.toInt(), superset, weekdays)
         Rules.plan(plan, exercises); save(plan)
     }.onSuccess { dismiss() }.onFailure { error = it.message ?: "输入无效" } }) { Text("保存") } },
         dismissButton = { TextButton(onClick = dismiss) { Text("取消") } })

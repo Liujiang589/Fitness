@@ -1,4 +1,4 @@
-package app.duolian.local
+﻿package app.duolian.local
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -207,7 +207,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
         }}
         item{Section("关于")}
         item{GroupCard{
-            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.7.0（9）")
+            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.8.0（10）")
         }}
     }
 }

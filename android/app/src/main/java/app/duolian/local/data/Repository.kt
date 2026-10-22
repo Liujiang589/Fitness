@@ -63,6 +63,22 @@ class Repository(private val db: LocalDatabase) {
         dao.deleteExercise(id)
     }
     suspend fun deletePlan(id: String) = dao.deletePlan(id)
+    /** Creates a plan from a built-in template, adding any exercises it references. */
+    suspend fun applyTemplate(t: PlanTemplate): Plan = db.withTransaction {
+        val existing = allExercises()
+        val ids = t.exercises.map { te ->
+            existing.firstOrNull { it.name == te.name }?.id ?: run {
+                val created = Exercise(name = te.name, muscle = te.muscle, equipment = te.equipment,
+                    defaultGrams = te.grams)
+                saveExercise(created)
+                created.id
+            }
+        }
+        val plan = Plan(name = t.name, exerciseIds = ids, sets = t.sets, reps = t.reps,
+            scheme = t.scheme, superset = t.superset, weekdays = t.weekdays)
+        savePlan(plan)
+        plan
+    }
     suspend fun start(planId: String, now: Long = System.currentTimeMillis()) = db.withTransaction {
         require(dao.active() == null) { "已有未结束训练，请先继续或结束" }
         val p = allPlans().first { it.id == planId }

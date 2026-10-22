@@ -69,6 +69,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun startHiitTimer(template: HiitTemplate) = TimerService.startHiit(getApplication(), template)
     fun stopTimer() = TimerService.stop(getApplication())
     fun saveHiitRun(run: HiitRun) = act { repo.addHiitRun(run); hiitRuns.value = repo.hiitRuns() }
+    /** Adds a built-in template as a normal editable plan. */
+    fun applyTemplate(t: PlanTemplate) = act {
+        val plan = repo.applyTemplate(t)
+        message.value = "已添加计划「${plan.name}」，共 ${plan.exerciseIds.size} 个动作"
+    }
     /** Applies a progression suggestion to the exercise's default weight for future sessions. */
     fun applySuggestion(exercise: Exercise, deltaGrams: Long) = act {
         val updated = exercise.copy(defaultGrams = (exercise.defaultGrams + deltaGrams).coerceIn(0, 1_000_000))

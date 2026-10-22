@@ -17,7 +17,9 @@ val Codec = Json { encodeDefaults = true; ignoreUnknownKeys = false }
     val id: String = newId(), val name: String, val exerciseIds: List<String>,
     val sets: Int = 3, val reps: Int = 10,
     val scheme: SetScheme = SetScheme.STRAIGHT, val restSeconds: Int = 0,
-    val superset: SupersetMode = SupersetMode.NONE
+    val superset: SupersetMode = SupersetMode.NONE,
+    /** ISO weekdays (1 = Monday … 7 = Sunday) this plan is scheduled on. */
+    val weekdays: List<Int> = emptyList()
 )
 @Serializable data class TrainingSet(
     val id: String = newId(), val grams: Long, val reps: Int = 10,
@@ -71,6 +73,7 @@ object Rules {
         require(x.exerciseIds.size in 1..100 && x.exerciseIds.distinct().size == x.exerciseIds.size) { "至少选择一个动作，不能重复" }
         require(x.exerciseIds.all { k -> exercises.any { it.id == k } }) { "计划引用的动作不存在" }
         require(x.superset != SupersetMode.PAIRS || x.exerciseIds.size >= 2) { "超级组至少需要两个动作" }
+        require(x.weekdays.all { it in 1..7 } && x.weekdays.distinct().size == x.weekdays.size) { "排期星期无效" }
     }
     fun trainingSet(x: TrainingSet) {
         id(x.id); require(x.grams in 0..1_000_000 && x.reps in 0..1000) { "重量需为0–1000kg，次数0–1000" }
