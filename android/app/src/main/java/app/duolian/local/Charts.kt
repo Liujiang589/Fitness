@@ -43,14 +43,12 @@ private val AccentFallback = Color(0xFFE8EEF7)
             }
         }
         if (labels.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth().padding(top = 5.dp)) {
-                labels.forEachIndexed { i, label ->
-                    Text(
-                        text = if (i % labelEvery == 0 || i == labels.lastIndex) label else "",
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Muted,
-                        maxLines = 1)
+            // Only sampled labels are laid out, so long ranges never squeeze dates onto two lines.
+            val shown = labels.indices.filter { it % labelEvery == 0 || it == labels.lastIndex }
+            Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                shown.forEach { i ->
+                    Text(text = labels[i], style = MaterialTheme.typography.labelSmall,
+                        color = Muted, maxLines = 1, softWrap = false)
                 }
             }
         }
