@@ -12,11 +12,11 @@ android {
         applicationId = "app.duolian.local"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.9.0"
+        versionCode = 16
+        versionName = "1.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     signingConfigs {
         getByName("debug") {
             storeFile = rootProject.file(".local-signing/duolian-debug.keystore")

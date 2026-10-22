@@ -6,6 +6,9 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -31,8 +34,9 @@ import java.time.LocalDate
 
 class MainActivity : ComponentActivity(){
     override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
-        setContent{MaterialTheme(colorScheme=lightColorScheme(primary=Blue,onPrimary=Color.White,secondary=Blue,background=Page,surface=Color.White,onSurface=Ink,onBackground=Ink,surfaceVariant=Page),
-            shapes=Shapes(small=RoundedCornerShape(10.dp),medium=RoundedCornerShape(16.dp),large=RoundedCornerShape(22.dp),extraLarge=RoundedCornerShape(28.dp))){DuolianScreen()}}
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0xFFF5F5F0.toInt(), 0xFFF5F5F0.toInt()),
+            navigationBarStyle = SystemBarStyle.light(0xFFF5F5F0.toInt(), 0xFFF5F5F0.toInt()))
+        setContent{DuolianTheme { DuolianScreen() }}
     }
 }
 private data class Confirmation(val title:String,val action:()->Unit)
@@ -77,55 +81,19 @@ private data class Confirmation(val title:String,val action:()->Unit)
         plan={editPlan=it;planForm=true},exercise={editExercise=it;exerciseForm=true},detail={detail=it},
         auxiliary={auxiliary=it;editFood=null;editBody=null},body={editBody=it;auxiliary="body"},
         food={editFood=it;auxiliary="food"},ask=ask,nutrition={tab=0;nutrition=true})
-    val labels=listOf("训练","工具","动作","历史","我的")
-    val icons=listOf(0,1,2,3,4)
-    var quickMenu by remember{mutableStateOf(false)}
-    Scaffold(containerColor=Page,snackbarHost={SnackbarHost(snackbar)},bottomBar={
-        Row(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically){
-            Surface(shape=RoundedCornerShape(30.dp),color=Color.White,shadowElevation=10.dp,modifier=Modifier.weight(1f)){
-                Row(Modifier.padding(horizontal=6.dp,vertical=6.dp)){
-                    labels.forEachIndexed{i,label->
-                        val selected=tab==i
-                        Column(Modifier.weight(1f).clip(RoundedCornerShape(24.dp))
-                            .then(if(selected)Modifier.background(PaleBlue) else Modifier)
-                            .clickable{tab=i}.padding(vertical=7.dp),
-                            horizontalAlignment=Alignment.CenterHorizontally){
-                            AppSymbol(icons[i],if(selected)Blue else Muted,Modifier.size(21.dp))
-                            Spacer(Modifier.height(3.dp))
-                            Text(label,style=MaterialTheme.typography.labelSmall,color=if(selected)Blue else Muted,
-                                fontWeight=if(selected)FontWeight.Bold else FontWeight.Normal)
-                        }
-                    }
-                }
+    var quickMenu by remember { mutableStateOf(false) }
+    BackHandler(enabled = tab == 0 && nutrition) { nutrition = false }
+    Scaffold(modifier = Modifier.imePadding(), containerColor = Page, snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
+        PremiumNavigation(tab) { tab = it; if (it == 0) nutrition = false }
+    }) { padding -> Column(Modifier.fillMaxSize().padding(padding)) {
+        Box {
+            PremiumHeader(tab, nutrition, { nutrition = !nutrition }, { quickMenu = true })
+            DropdownMenu(expanded = quickMenu, onDismissRequest = { quickMenu = false }) {
+                DropdownMenuItem(text = { Text("记录饮食") }, onClick = { quickMenu = false; tab = 0; nutrition = true })
+                DropdownMenuItem(text = { Text("记录饮水") }, onClick = { quickMenu = false; a.auxiliary("water:${LocalDate.now()}") })
+                DropdownMenuItem(text = { Text("记录体重") }, onClick = { quickMenu = false; a.body(null) })
+                DropdownMenuItem(text = { Text("创建计划") }, onClick = { quickMenu = false; a.plan(null) })
             }
-            Spacer(Modifier.width(10.dp))
-            Box{
-                Box(Modifier.size(62.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Blue)
-                    .clickable{quickMenu=true},contentAlignment=Alignment.Center){
-                    Column(horizontalAlignment=Alignment.CenterHorizontally){
-                        Text("训练",color=Color.White,style=MaterialTheme.typography.labelSmall,fontWeight=FontWeight.Bold)
-                        Text("记录",color=Color.White,style=MaterialTheme.typography.labelSmall)
-                    }
-                }
-                DropdownMenu(expanded=quickMenu,onDismissRequest={quickMenu=false}){
-                    DropdownMenuItem(text={Text("开始训练")},onClick={
-                        quickMenu=false;tab=0
-                        val plan=plans.firstOrNull()
-                        if(plan!=null)vm.act{vm.repo.start(plan.id)} else a.plan(null)
-                    })
-                    DropdownMenuItem(text={Text("记录饮食")},onClick={quickMenu=false;tab=0;nutrition=true})
-                    DropdownMenuItem(text={Text("记录体重")},onClick={quickMenu=false;a.body(null)})
-                }
-            }
-        }
-    }){padding->Column(Modifier.fillMaxSize().padding(padding)){
-        Row(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=18.dp),verticalAlignment=Alignment.CenterVertically){
-            Column(Modifier.weight(1f)){
-                if(tab==0){Text("${LocalDate.now().monthValue} 月 ${LocalDate.now().dayOfMonth} 日  ·  独练",color=Muted,style=MaterialTheme.typography.labelMedium);Spacer(Modifier.height(5.dp))}
-                Text(if(tab==0)if(nutrition)"饮食手记" else "今天也要好好训练" else labels[tab],style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
-            }
-            if(tab==0)TextButton(onClick={nutrition=!nutrition}){Text(if(nutrition)"训练 ›" else "饮食 ›",fontWeight=FontWeight.Bold)}
-            if(tab==4)Text("本地",color=Blue,style=MaterialTheme.typography.labelLarge)
         }
         if(busy)LinearProgressIndicator(Modifier.fillMaxWidth(),color=Blue)
         if(!ready)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){
@@ -161,7 +129,9 @@ private data class Confirmation(val title:String,val action:()->Unit)
     when(kind){
         "rest"->FieldsDialog("组间休息",listOf("秒（0–600）" to rest.toString()),{auxiliary=null}){v->val seconds=v[0].toInt();require(seconds in 0..600){"休息需为0–600秒"};vm.setRest(seconds)}
         "body"->FieldsDialog(if(editBody==null)"记录身体数据" else "编辑身体记录",listOf("日期" to(editBody?.date?:auxDate),"体重 kg" to(editBody?.let{kg(it.grams)}?:""),"体脂 %（可空）" to(editBody?.fatPercent?.toString()?:"")),{auxiliary=null}){v->val b=Body(id=editBody?.id?:newId(),date=v[0],grams=Rules.parseKg(v[1]),fatPercent=v[2].takeIf{it.isNotBlank()}?.toDouble());Rules.body(b);vm.act{vm.repo.saveBody(b)}}
-        "food","meal"->FieldsDialog(if(editFood==null)"记录饮食" else "编辑饮食记录",listOf("日期" to(editFood?.date?:auxDate),"餐次：早餐/午餐/晚餐/加餐" to(editFood?.meal?:if(kind=="meal")auxiliary!!.split(':')[1] else "早餐"),"名称" to(editFood?.name?:""),"蛋白质 g" to(editFood?.protein?.toString()?:"0"),"碳水 g" to(editFood?.carbs?.toString()?:"0"),"脂肪 g" to(editFood?.fat?.toString()?:"0")),{auxiliary=null}){v->val f=Food(id=editFood?.id?:newId(),date=v[0],meal=v[1],name=v[2],protein=v[3].toDouble(),carbs=v[4].toDouble(),fat=v[5].toDouble());Rules.food(f);vm.act{vm.repo.saveFood(f)}}
+        "food","meal" -> FoodEntryDialog(editFood, auxDate,
+            if (kind == "meal") auxiliary!!.split(':')[1] else "早餐", food, busy,
+            dismiss = { auxiliary = null }, save = { entry -> vm.act { vm.repo.saveFood(entry); auxiliary = null } })
         "water"->FieldsDialog("记录饮水",listOf("日期" to auxDate,"饮水 ml" to "250"),{auxiliary=null}){v->val w=Water(date=v[0],ml=v[1].toInt());Rules.water(w);vm.act{vm.repo.saveWater(w)}}
     }
 }
@@ -169,23 +139,25 @@ private data class Confirmation(val title:String,val action:()->Unit)
 @Composable private fun ProfilePage(body:List<Body>,sessions:List<Session>,rest:Int,busy:Boolean,vm:MainViewModel,a:ScreenActions,export:()->Unit,import:()->Unit,recovery:()->Unit,autoBackup:()->Unit,autoBackupAt:Long?){
     val finished = sessions.filter{it.endedAt!=null}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(15.dp)){
-        item{Panel{
+        item{Panel(color=Night){
             Row(verticalAlignment=Alignment.CenterVertically){
-                Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(PaleBlue),
+                Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Volt),
                     contentAlignment=Alignment.Center){
-                    Text("独",color=Blue,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                    Text("独",color=Night,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
                 }
                 Column(Modifier.weight(1f).padding(start=14.dp)){
-                    Text("本地账户",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge)
-                    Text("数据只保存在这台手机",color=Muted,style=MaterialTheme.typography.bodySmall)
+                    Text("独练者",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge,color=Color.White)
+                    Text("专注每一次，成为更好的自己",color=Color(0xFFB3BDA9),style=MaterialTheme.typography.bodySmall)
                 }
             }
+        }}
+        item { Panel { DetailDisclosure("训练积累") {
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 StatTile(finished.size.toString(),"累计训练",Modifier.weight(1f),accent=Blue)
                 StatTile(number(Analytics.totalVolume(finished)),"累计容量 kg",Modifier.weight(1f))
                 StatTile(Analytics.streak(finished).toString(),"连续天数",Modifier.weight(1f))
             }
-        }}
+        } } }
         item{Section("身体记录","＋ 记录",{a.body(null)})}
         if(body.isEmpty())item{EmptyPanel("从今天开始记录变化","记录体重和体脂率，数据保存在这台手机。")}
         items(body,key={it.id}){b->Panel{Row{Column(Modifier.weight(1f)){Text("${kg(b.grams)} kg",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text("${b.date}  ${b.fatPercent?.let{"体脂 ${number(it)}%"}?:""}",color=Muted,style=MaterialTheme.typography.bodySmall)};TextButton(onClick={a.body(b)}){Text("编辑")};TextButton(onClick={a.ask("删除此身体记录？"){vm.act{vm.repo.deleteBody(b.id)}}}){Text("删除",color=Muted)}}}}
@@ -195,9 +167,9 @@ private data class Confirmation(val title:String,val action:()->Unit)
         }}
         item{Section("数据与备份")}
         item{GroupCard{
-            IconSettingRow(0,Color(0xFF2C8C63),"导出全部数据","duolian-native v2 · JSON",enabled=!busy,onClick=export)
+            IconSettingRow(0,Color(0xFF2C8C63),"导出全部数据","duolian-native v3 · JSON",enabled=!busy,onClick=export)
             HorizontalDivider(color=Page)
-            IconSettingRow(0,Blue,"导入备份","支持 v1 / v2，导入前自动留快照",enabled=!busy,onClick=import)
+            IconSettingRow(0,Blue,"导入备份","支持 v1 / v2 / v3，导入前自动留快照",enabled=!busy,onClick=import)
             HorizontalDivider(color=Page)
             IconSettingRow(0,Color(0xFFE59B42),"导入前备份","最近一次导入前的恢复文件",onClick=recovery)
             HorizontalDivider(color=Page)
@@ -207,7 +179,9 @@ private data class Confirmation(val title:String,val action:()->Unit)
         }}
         item{Section("关于")}
         item{GroupCard{
-            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",trailing="0.9.0（11）")
+            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",
+                trailing="V${BuildConfig.VERSION_NAME}")
         }}
+        item { AuthorContactCard() }
     }
 }

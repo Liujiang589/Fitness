@@ -13,7 +13,7 @@ class BackupTest {
         completedRounds = 8, workSeconds = 20, restSeconds = 10, rounds = 8)
 
     @Test fun versionTwoBackupCarriesHiitHistory() {
-        val backup = Backup(exercises = listOf(exercise), plans = listOf(plan), sessions = emptyList(),
+        val backup = Backup(version = 2, exercises = listOf(exercise), plans = listOf(plan), sessions = emptyList(),
             body = emptyList(), food = emptyList(), water = emptyList(), hiitRuns = listOf(run()))
         val decoded = Codec.decodeFromString<Backup>(Codec.encodeToString(backup))
         Rules.backup(decoded)

@@ -1,6 +1,38 @@
-﻿# 独练 Android 工程（0.4.1）
+﻿# 独练 Android 工程（V1.2）
 
 包名 `app.duolian.local`，Kotlin + Jetpack Compose + Room，支持 Android 8.0（API 26）及以上。
+
+## V1.2 版本命名
+
+versionName为1.2，关于页展示V1.2；内部versionCode16，继续使用现有签名。对外文件为Duolian-V1.2.apk。规则与验证见[VERSIONING.md](../docs/VERSIONING.md)、[V1_2_VERIFICATION.md](../docs/V1_2_VERIFICATION.md)。
+
+## 0.12.0 信息分层与高清配图
+
+新增CalmDesign.kt：可保存状态的明细展开控件、适应文字高度的图片横幅、由真实宏量营养供能计算的色条。首页、训练、历史、饮食、工具与我的页调整展示层级，领域逻辑和数据库保持兼容。
+
+新图片位于app/src/main/res/drawable-nodpi/training_daylight.webp和nutrition_daylight.webp，均1536×1024。生成方式与提示词见[设计记录](../docs/UI012_DESIGN.md)。
+
+新增CalmPresentationUiTest，更新TrainingUiTest的明细展开与专业分析入口；本轮设备测试仅编译。122项JVM测试通过，最终检查与限制见[UI012_VERIFICATION.md](../docs/UI012_VERIFICATION.md)。
+
+## 0.11.1 作者联系方式
+
+新增 `AuthorContact.kt`，联系方式资源在 `app/src/main/res/values/author.xml`。复制号码由用户点击触发，不需要电话权限；关于版本号使用BuildConfig自动更新。
+
+局域网分发见 [LAN_DOWNLOAD.md](../docs/LAN_DOWNLOAD.md)；本版验证见 [UI0111_VERIFICATION.md](../docs/UI0111_VERIFICATION.md)。
+
+## 0.11.0 快速记录与营养换算
+
+新增 `InlineTraining.kt`、`FoodEntryDialog.kt` 及纯逻辑 `TrainingAssist.kt`、`Nutrition.kt`、生成式 `FoodCatalog.kt`。食物库来源与复现脚本见 [nutrition/README.md](../docs/nutrition/README.md)。
+
+饮食可空新字段兼容旧 Room JSON 载荷；备份默认 v3，支持导入 v1–v3。训练行内保存只更新重量和次数，完成与撤销在 Room 事务内执行。
+
+本版变更：[UI011_CHANGES.md](../docs/UI011_CHANGES.md)；验证：[UI011_VERIFICATION.md](../docs/UI011_VERIFICATION.md)。
+
+## 0.10.0 视觉升级
+
+新增 `PremiumDesign.kt`：统一主题、页头、底部导航、训练主卡、周打卡与进步摘要。原有页面与数据层继续使用，离线主视觉位于 `app/src/main/res/drawable-nodpi/training_editorial.webp`。
+
+设计说明：[UI010_DESIGN.md](../docs/UI010_DESIGN.md)。0.10.0 验证：[UI010_VERIFICATION.md](../docs/UI010_VERIFICATION.md)。下方 0.4 / 0.4.1 为历史功能与验证记录。
 
 ## 0.4 新增
 

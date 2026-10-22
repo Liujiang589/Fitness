@@ -1,14 +1,12 @@
 package app.duolian.local
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.duolian.local.domain.*
 import java.time.LocalDate
 import java.time.Instant
@@ -39,37 +38,35 @@ internal class ScreenActions(
 )
 
 @Composable internal fun NutritionSummary(food: List<Food>, water: List<Water>, date: String,
-    a: ScreenActions) {
+    a: ScreenActions, detailed: Boolean = false) {
     val fs = food.filter { it.date == date }
     val ml = water.filter { it.date == date }.sumOf { it.ml }
     val protein = fs.sumOf { it.protein }; val carbs = fs.sumOf { it.carbs }; val fat = fs.sumOf { it.fat }
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("今日营养", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+            Text(if (date == LocalDate.now().toString()) "今日营养" else "当日营养", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f))
-            Text("详细 ›", color = Blue, style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.clickable { a.nutrition() })
+            if (!detailed) TextButton(onClick = a.nutrition) { Text("饮食手记 ›") }
         }
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("已摄入 ", color = Muted, style = MaterialTheme.typography.labelMedium)
-            Text("${number(fs.sumOf { it.calories })}", style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold)
-            Text(" kcal", color = Muted, style = MaterialTheme.typography.labelMedium)
+        Text(if (fs.isEmpty()) "吃了什么，记一下就好。" else "食物和重量已记录，营养由独练计算。",
+            color = Ink, style = MaterialTheme.typography.bodyMedium)
+        NutritionBreakdown(protein, carbs, fat)
+        if (detailed) {
+            Text("已摄入 ≈ ${number(fs.sumOf { it.calories })} kcal", color = Blue,
+                style = MaterialTheme.typography.titleMedium)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val tiles = listOf(
-                Triple("蛋白 (g)", number(protein), Color(0xFFFFF6E8)),
-                Triple("碳水 (g)", number(carbs), Color(0xFFEEF1FF)),
-                Triple("脂肪 (g)", number(fat), Color(0xFFFFEEF1)),
-                Triple("饮水 (ml)", ml.toString(), Color(0xFFE9F8FA)))
-            tiles.forEach { (label, value, tint) ->
-                Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(tint).padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(label, color = Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                    Spacer(Modifier.height(4.dp))
-                    Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        DetailDisclosure("营养明细") {
+            if (!detailed) Text("已摄入 ≈ ${number(fs.sumOf { it.calories })} kcal", color = Blue,
+                style = MaterialTheme.typography.titleMedium)
+            listOf("蛋白质" to "${number(protein)} g", "碳水化合物" to "${number(carbs)} g",
+                "脂肪" to "${number(fat)} g", "饮水" to "$ml ml").forEach { (label, value) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, color = Muted, modifier = Modifier.weight(1f))
+                    Text(value, color = Ink, fontWeight = FontWeight.SemiBold)
                 }
             }
+            Text("营养根据已记录食物估算；未设置个人摄入目标。", color = Muted,
+                style = MaterialTheme.typography.bodySmall)
         }
         HorizontalDivider(color = Page)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -96,14 +93,13 @@ internal class ScreenActions(
     val alerts = remember(sessions, exercises) { Diagnostics.alerts(sessions, exercises) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (alerts.isNotEmpty()) item { DiagnosticsBanner(alerts) }
-        if (active != null) item { ActiveTraining(active, vm, busy, a.ask) }
+        if (active != null) item { ActiveTraining(active, vm, sessions, exercises, busy, a.ask) }
         else {
-            item { NutritionSummary(food, water, LocalDate.now().toString(), a) }
-            item { WeekStrip(history) }
-            item { ScheduleCard(plans, active, busy, vm) }
-            item { TemplateLibrary(vm) }
+            item { TrainingSpotlight(plans, busy, vm) { a.plan(null) } }
+            item { WeeklyMomentum(history) }
         }
+        if (active == null) {
+        if (alerts.isNotEmpty()) item { DiagnosticsBanner(alerts) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("训练计划", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
@@ -125,7 +121,7 @@ internal class ScreenActions(
                         contentAlignment = Alignment.Center) { AppSymbol(2, Blue) }
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Text(p.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                        Text("${p.exerciseIds.size} 个动作 · ${p.sets} 组 × ${p.reps} 次", color = Muted,
+                        Text(exercises.filter { it.id in p.exerciseIds }.map { it.muscle }.distinct().joinToString(" · ").ifBlank { "按计划逐组完成" }, color = Muted,
                             style = MaterialTheme.typography.bodySmall)
                     }
                     Box {
@@ -142,104 +138,94 @@ internal class ScreenActions(
                         }
                     }
                 }
-                val tags = buildList {
-                    if (p.scheme != SetScheme.STRAIGHT) add(p.scheme.label)
-                    if (p.superset != SupersetMode.NONE) add(p.superset.label)
-                    if (p.restSeconds > 0) add("休息 ${p.restSeconds}s")
-                }
-                if (tags.isNotEmpty()) {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        tags.forEach { tag ->
-                            Text(tag, Modifier.clip(RoundedCornerShape(9.dp)).background(Page)
-                                .padding(horizontal = 9.dp, vertical = 4.dp), color = Muted,
-                                style = MaterialTheme.typography.labelSmall)
+                DetailDisclosure("计划内容") {
+                    Text("${p.exerciseIds.size} 个动作 · ${p.sets} 组 × ${p.reps} 次 · 休息 ${p.restSeconds}s",
+                        color = Muted, style = MaterialTheme.typography.bodySmall)
+                    Text("${p.scheme.label} · ${p.superset.label}", color = Blue,
+                        style = MaterialTheme.typography.labelMedium)
+                    p.exerciseIds.forEach { id ->
+                        exercises.find { it.id == id }?.let { e ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                ExerciseArt(e.muscle, Modifier.size(38.dp))
+                                Text(e.name, Modifier.weight(1f).padding(start = 10.dp),
+                                    style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                     }
                 }
-                p.exerciseIds.take(2).forEach { id ->
-                    exercises.find { it.id == id }?.let { e ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(5.dp).clip(RoundedCornerShape(3.dp)).background(Blue))
-                            Text(e.name, Modifier.weight(1f).padding(start = 9.dp),
-                                style = MaterialTheme.typography.bodyMedium)
-                            Text("${p.sets} × ${p.reps}", style = MaterialTheme.typography.bodySmall, color = Muted)
-                        }
-                    }
-                }
-                if (p.exerciseIds.size > 2) Text("还有 ${p.exerciseIds.size - 2} 个动作", color = Muted,
-                    style = MaterialTheme.typography.labelMedium)
-                Button(enabled = active == null && !busy, onClick = { vm.act { vm.repo.start(p.id) } },
+                Button(enabled = !busy, onClick = { vm.act { vm.repo.start(p.id) } },
                     modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
                     contentPadding = PaddingValues(14.dp)) { Text("开始训练") }
             }
         }
-    }
-}
-
-@Composable private fun WeekStrip(history: List<Session>) {
-    val today = LocalDate.now(); val monday = today.minusDays(today.dayOfWeek.value.toLong() - 1)
-    val days = history.map { Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate() }.toSet()
-    val thisWeek = days.count { it >= monday && it <= monday.plusDays(6) }
-    val streak = Analytics.streak(history)
-    Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("本周", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium)
-            Text("$thisWeek 天", color = Blue, style = MaterialTheme.typography.labelLarge)
-            Text(" · 连续 $streak 天", color = Muted, style = MaterialTheme.typography.labelLarge)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { i, label ->
-                val d = monday.plusDays(i.toLong())
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(label, color = Muted, style = MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.height(7.dp))
-                    Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp))
-                        .background(if (d in days) Blue else if (d == today) PaleBlue else Page),
-                        contentAlignment = Alignment.Center) {
-                        Text(if (d in days) "✓" else d.dayOfMonth.toString(),
-                            color = if (d in days) Color.White else if (d == today) Blue else Muted,
-                            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
+        item { TemplateLibrary(vm) }
+        if (plans.any { it.weekdays.isNotEmpty() }) item { ScheduleCard(plans, active, busy, vm) }
+        item { NutritionSummary(food, water, LocalDate.now().toString(), a) }
         }
     }
 }
 
 @Composable internal fun ExercisePage(exercises: List<Exercise>, a: ScreenActions) {
-    var query by rememberSaveable{mutableStateOf("")};var muscle by rememberSaveable{mutableStateOf("全部")};var equipment by rememberSaveable{mutableStateOf("全部")}
-    var favoritesOnly by rememberSaveable{mutableStateOf(false)}
-    val muscles=listOf("全部")+exercises.map{it.muscle}.distinct()
-    val filtered=exercises.filter{(query.isBlank()||it.name.contains(query,true))&&(muscle=="全部"||it.muscle==muscle)&&(equipment=="全部"||it.equipment==equipment)&&(!favoritesOnly||it.favorite)}
-        .sortedWith(compareByDescending<Exercise>{it.favorite}.thenBy{it.name})
-    Column(Modifier.fillMaxSize()){
-        Row(Modifier.padding(horizontal=18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
-            AppField(query,{query=it},placeholder="搜索动作名称",modifier=Modifier.weight(1f))
-            FilledIconButton(onClick={a.exercise(null)},modifier=Modifier.size(50.dp),shape=RoundedCornerShape(17.dp)){Text("＋",style=MaterialTheme.typography.headlineMedium)}
+    var query by rememberSaveable { mutableStateOf("") }
+    var muscle by rememberSaveable { mutableStateOf("全部") }
+    var equipment by rememberSaveable { mutableStateOf("全部") }
+    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    val filtered = exercises.filter {
+        (query.isBlank() || it.name.contains(query, true) || it.muscle.contains(query, true) || it.equipment.contains(query, true)) &&
+            (muscle == "全部" || it.muscle == muscle) && (equipment == "全部" || it.equipment == equipment) &&
+            (!favoritesOnly || it.favorite)
+    }.sortedWith(compareByDescending<Exercise> { it.favorite }.thenBy { it.name })
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AppField(query, { query = it }, placeholder = "搜索动作、肌群或器械", modifier = Modifier.weight(1f))
+            FilledIconButton(onClick = { a.exercise(null) }, modifier = Modifier.size(52.dp),
+                shape = RoundedCornerShape(16.dp)) { Text("＋", fontSize = 26.sp) }
         }
-        Spacer(Modifier.height(14.dp))
-        Row(Modifier.weight(1f)){
-            LazyColumn(Modifier.width(76.dp).fillMaxHeight(),contentPadding=PaddingValues(bottom=12.dp)){
-                items(muscles){m->Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(topEnd=13.dp,bottomEnd=13.dp)).background(if(m==muscle)Color.White else Color.Transparent).clickable{muscle=m}.padding(vertical=18.dp),contentAlignment=Alignment.Center){Text(m,color=if(m==muscle)Blue else Muted,fontWeight=if(m==muscle)FontWeight.Bold else FontWeight.Normal,style=MaterialTheme.typography.bodyMedium)}}
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            (listOf("全部") + exercises.map { it.muscle }.distinct()).forEach { name ->
+                ChoicePill(name, muscle == name, { muscle = name })
             }
-            Column(Modifier.weight(1f).padding(start=10.dp,end=18.dp)){
-                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(7.dp)){
-                    FilterChip(selected=favoritesOnly,onClick={favoritesOnly=!favoritesOnly},label={Text("★ 收藏")},shape=RoundedCornerShape(11.dp))
-                    (listOf("全部")+exercises.map{it.equipment}.distinct()).forEach{e->FilterChip(selected=equipment==e,onClick={equipment=e},label={Text(e)},shape=RoundedCornerShape(11.dp))}
-                }
-                Row(Modifier.padding(vertical=10.dp),verticalAlignment=Alignment.CenterVertically){Text(if(muscle=="全部")"全部动作" else muscle,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));Text("${filtered.size} 项",color=Muted,style=MaterialTheme.typography.labelMedium)}
-                LazyVerticalGrid(columns=GridCells.Fixed(2),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=20.dp),modifier=Modifier.weight(1f)){
-                    gridItems(filtered,key={it.id}){e->Surface(onClick={a.detail(e)},color=Color.White,shape=RoundedCornerShape(19.dp)){
-                        Column(Modifier.padding(10.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                            if(e.mediaUri!=null)ExercisePhoto(e.mediaUri!!,Modifier.fillMaxWidth().height(94.dp).clip(RoundedCornerShape(12.dp)))
-                            else ExerciseArt(e.muscle,Modifier.fillMaxWidth().height(94.dp))
-                            Text((if(e.favorite)"★ " else "")+e.name,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.heightIn(min=42.dp))
-                            Text(e.equipment,color=Muted,style=MaterialTheme.typography.labelSmall)
+        }
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly },
+                label = { Text("★ 我的收藏") })
+            (listOf("全部") + exercises.map { it.equipment }.distinct()).forEach { name ->
+                FilterChip(selected = equipment == name, onClick = { equipment = name },
+                    label = { Text(if (name == "全部") "全部器械" else name) })
+            }
+        }
+        Row(Modifier.padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (muscle == "全部") "全部动作" else muscle, fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            Text("${filtered.size} 个动作", color = Muted, style = MaterialTheme.typography.labelMedium)
+        }
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (query.isBlank() && muscle == "全部" && !favoritesOnly && equipment == "全部") item {
+                LifestyleBanner(R.drawable.training_daylight, "找到适合\n自己的动作", "肌群示意帮你定位，动作细节随时查看。")
+            }
+            if (filtered.isEmpty()) item { EmptyPanel("没有匹配的动作", "试试其他关键词，或切换肌群和器械筛选。") }
+            items(filtered, key = { it.id }) { exercise ->
+                Surface(onClick = { a.detail(exercise) }, color = Color.White,
+                    shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Hairline)) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(Modifier.size(74.dp).clip(RoundedCornerShape(16.dp)).background(Page)) {
+                            if (exercise.mediaUri != null) ExercisePhoto(exercise.mediaUri, Modifier.fillMaxSize())
+                            else ExerciseArt(exercise.muscle, Modifier.fillMaxSize().padding(4.dp))
                         }
-                    }}
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text((if (exercise.favorite) "★ " else "") + exercise.name,
+                                fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+                            Text("${exercise.muscle}  /  ${exercise.equipment}", color = Muted,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("↗", color = Blue, fontSize = 22.sp)
+                    }
                 }
-                if(filtered.isEmpty())Text("没有匹配的动作",Modifier.padding(12.dp),color=Muted)
             }
         }
     }
@@ -249,18 +235,35 @@ internal class ScreenActions(
     body: List<Body>, food: List<Food>, vm: MainViewModel,a: ScreenActions){
     var range by rememberSaveable{mutableStateOf("全部")};var selected by rememberSaveable{mutableStateOf<String?>(null)}
     var days by rememberSaveable{mutableStateOf(30)}
+    var section by rememberSaveable { mutableIntStateOf(0) }
     var month by remember{mutableStateOf(java.time.YearMonth.now())}
     var picked by remember{mutableStateOf<LocalDate?>(null)}
     val all=sessions.filter{it.endedAt!=null}.sortedByDescending{it.startedAt}
     val history=all.filter{(picked==null||Analytics.dateOf(it)==picked)&&(range=="全部"||Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()>=LocalDate.now().minusDays(if(range=="近7天")6 else 29))}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+        item { ProgressOverview(all) }
+        item {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("训练记录", "身体与饮食", "专业分析").forEachIndexed { i, label ->
+                    FilterChip(selected = section == i, onClick = { section = i }, label = { Text(label) })
+                }
+            }
+        }
+        if (section == 1) {
+            item { LifestyleBanner(R.drawable.nutrition_daylight, "好好吃饭，\n好好训练", "看长期的变化，也关心今天的感受。") }
+            item { BodyPanel(body) }
+            item { NutritionPanel(food) }
+        }
+        if (section == 2) {
+            item { Text("先看趋势与建议，需要时展开计算指标。", color = Muted,
+                style = MaterialTheme.typography.bodyMedium) }
+            item { TrainingLoadPanel(all,days){days=it} }
+            item { DiagnosticsPanel(all,exercises) }
+            item { MusclePanel(all,exercises) }
+            item { RecordsPanel(all) }
+        }
+        if (section == 0) {
         item{CalendarCard(all,month,{month=it},picked){ d -> picked = if(picked==d) null else d }}
-        item{DiagnosticsPanel(all,exercises)}
-        item{TrainingLoadPanel(all,days){days=it}}
-        item{BodyPanel(body)}
-        item{NutritionPanel(food)}
-        item{MusclePanel(all,exercises)}
-        item{RecordsPanel(all)}
         item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("全部","近7天","近30天").forEach{r->ChoicePill(r, range==r, {range=r})}}}
         item{Section("训练记录")}
         if(history.isEmpty())item{EmptyPanel("还没有训练记录","完成并保存一次训练，就能查看每组明细与容量。")}
@@ -278,12 +281,13 @@ internal class ScreenActions(
                 }
                 TextButton(onClick={selected=if(selected==s.id)null else s.id}){Text(if(selected==s.id)"收起" else "详情")}
             }
+            if(selected==s.id){
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 StatTile("${s.movements.sumOf{it.sets.count{it.done}}}","完成组",Modifier.weight(1f))
                 StatTile(number(Rules.volumeKg(s)),"容量 kg",Modifier.weight(1f))
                 StatTile(kg(Progression.bestOneRm(s)),"最佳 1RM",Modifier.weight(1f), accent=Blue)
             }
-            if(selected==s.id){s.movements.forEach{m->
+            s.movements.forEach{m->
                 HorizontalDivider(color=Page)
                 Row(verticalAlignment=Alignment.CenterVertically){
                     Text(m.name,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
@@ -309,6 +313,7 @@ internal class ScreenActions(
             }
                 TextButton(onClick={a.ask("永久删除这条训练历史？"){vm.act{vm.repo.deleteSession(s.id)}}}){Text("删除记录",color=MaterialTheme.colorScheme.error)}}
         }}
+        }
     }
 }
 
@@ -320,12 +325,17 @@ internal class ScreenActions(
             Text(date,Modifier.weight(1f),style=MaterialTheme.typography.labelLarge)
             TextButton(onClick={date=LocalDate.parse(date).plusDays(1).toString()}){Text("后一天 ›")}
         }}
-        item{NutritionSummary(food,water,date,a)}
+        item { LifestyleBanner(R.drawable.nutrition_daylight, "一餐一记，\n轻松了解", "选食物、填重量，自动估算营养。") }
+        item{NutritionSummary(food,water,date,a,detailed=true)}
         listOf("早餐","午餐","晚餐","加餐").forEach{meal->
             val entries=food.filter{it.date==date&&it.meal==meal}
             item{Section(meal,"＋ 记录",{a.auxiliary("meal:$meal:$date")})}
             if(entries.isEmpty())item{Text("暂无记录",Modifier.padding(start=4.dp),color=Muted,style=MaterialTheme.typography.bodySmall)}
-            items(entries,key={it.id}){f->Panel{Row{Column(Modifier.weight(1f)){Text(f.name,fontWeight=FontWeight.SemiBold);Text("${number(f.calories)} kcal",color=Blue)};TextButton(onClick={a.food(f)}){Text("编辑")};TextButton(onClick={a.ask("删除此饮食记录？"){vm.act{vm.repo.deleteFood(f.id)}}}){Text("删除",color=Muted)}};Text("蛋白 ${number(f.protein)}g · 碳水 ${number(f.carbs)}g · 脂肪 ${number(f.fat)}g",color=Muted,style=MaterialTheme.typography.bodySmall)}}
+            items(entries,key={it.id}){f->Panel{Row{Column(Modifier.weight(1f)){Text(f.name,fontWeight=FontWeight.SemiBold)
+                    f.grams?.let { Text("${number(it)}g · ${f.preparation.orEmpty()}", color=Muted, style=MaterialTheme.typography.labelSmall) }
+                    Text("≈ ${number(f.calories)} kcal",color=Blue)};TextButton(onClick={a.food(f)}){Text("编辑")};TextButton(onClick={a.ask("删除此饮食记录？"){vm.act{vm.repo.deleteFood(f.id)}}}){Text("删除",color=Muted)}};DetailDisclosure("这份食物的营养") {
+                        Text("蛋白 ${number(f.protein)}g · 碳水 ${number(f.carbs)}g · 脂肪 ${number(f.fat)}g",color=Muted,style=MaterialTheme.typography.bodySmall)
+                    }}}
         }
         item{Section("饮水记录","＋ 记录",{a.auxiliary("water:$date")})}
         items(water.filter{it.date==date},key={it.id}){w->Panel{Row(verticalAlignment=Alignment.CenterVertically){Text("${w.ml} ml",Modifier.weight(1f),fontWeight=FontWeight.SemiBold);TextButton(onClick={a.ask("删除此饮水记录？"){vm.act{vm.repo.deleteWater(w.id)}}}){Text("删除")}}}}
@@ -547,28 +557,36 @@ internal class ScreenActions(
 }
 
 @Composable private fun TemplateLibrary(vm: MainViewModel) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("计划模板", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f))
-            Text("${Templates.all.size} 套 · 点击即加入", color = Muted, style = MaterialTheme.typography.labelMedium)
+            Text("找到你的训练方式", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text("${Templates.all.size} 套计划", color = Muted, style = MaterialTheme.typography.labelSmall)
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Templates.all.forEach { t ->
-                Surface(shape = RoundedCornerShape(18.dp), color = Color.White, modifier = Modifier.width(186.dp)) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(t.level, color = Blue, style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold)
-                        Text(t.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1)
-                        Text(t.subtitle, color = Muted, style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1)
-                        Text("${t.exercises.size} 动作 · ${t.sets}×${t.reps}", color = Muted,
-                            style = MaterialTheme.typography.labelSmall)
-                        Spacer(Modifier.height(4.dp))
-                        Button(onClick = { vm.applyTemplate(t) }, modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(11.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                            Text("使用", style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Templates.all.forEachIndexed { index, template ->
+                val dark = index % 3 == 0
+                val foreground = if (dark) Color.White else Ink
+                Surface(shape = RoundedCornerShape(24.dp), color = if (dark) Night else Color.White,
+                    border = BorderStroke(1.dp, if (dark) Night else Hairline), modifier = Modifier.width(220.dp)) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("PROGRAM / ${"%02d".format(index + 1)}", color = if (dark) Volt else Blue,
+                                style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f))
+                            AppSymbol(2, if (dark) Volt else Blue, Modifier.size(26.dp))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text(template.name, color = foreground, style = MaterialTheme.typography.titleLarge)
+                        Text(template.subtitle, color = if (dark) Color(0xFFBAC3B1) else Muted,
+                            style = MaterialTheme.typography.bodySmall)
+                        Text("${template.exercises.size} 个动作  ·  ${template.sets} 组 × ${template.reps} 次",
+                            color = if (dark) Color(0xFFBAC3B1) else Muted, style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.height(3.dp))
+                        OutlinedButton(onClick = { vm.applyTemplate(template) }, modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, if (dark) Volt else Hairline),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = if (dark) Volt else Blue)) {
+                            Text("加入我的计划", modifier = Modifier.weight(1f))
+                            Text("＋")
                         }
                     }
                 }
@@ -584,7 +602,10 @@ internal class ScreenActions(
                 contentAlignment = Alignment.Center) { AppSymbol(8, Color(0xFFE59B42), Modifier.size(19.dp)) }
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Text("训练提醒", fontWeight = FontWeight.Bold, color = Color(0xFFB46A12))
-                Text(alerts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Ink)
+                Text(alerts.first(), style = MaterialTheme.typography.bodySmall, color = Ink)
+                if (alerts.size > 1) DetailDisclosure("其他训练提醒") {
+                    alerts.drop(1).forEach { Text(it, color = Ink, style = MaterialTheme.typography.bodySmall) }
+                }
             }
         }
     }
@@ -611,12 +632,15 @@ internal class ScreenActions(
                     modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(color.copy(alpha = 0.12f))
                         .padding(horizontal = 9.dp, vertical = 3.dp), style = MaterialTheme.typography.labelMedium)
             }
+            Text(risk.advice, color = Ink, style = MaterialTheme.typography.bodyMedium)
+            DetailDisclosure("负荷计算指标") {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatTile(number(risk.acuteKg), "本周容量 kg", Modifier.weight(1f))
                 StatTile(number(risk.chronicKg), "周均容量 kg", Modifier.weight(1f))
                 StatTile("%.2f".format(risk.ratio), "急慢比", Modifier.weight(1f), accent = Blue)
             }
-            Text(risk.advice, color = Muted, style = MaterialTheme.typography.bodySmall)
+            Text("急慢比是近期与既往训练容量的比较，用于观察训练变化。", color = Muted, style = MaterialTheme.typography.bodySmall)
+            }
         }
         Panel {
             Text("本周肌群组数", fontWeight = FontWeight.Bold)

@@ -64,25 +64,29 @@ private fun mmss(ms: Long): String {
 @Composable private fun ToolGrid(onRest: () -> Unit, onHiit: () -> Unit, onOneRm: () -> Unit, onPlate: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ToolTile(1, "组间计时", "休息倒计时", Blue, Modifier.weight(1f), onRest)
-            ToolTile(5, "间歇训练", "HIIT 计时", Color(0xFFE5534B), Modifier.weight(1f), onHiit)
+            ToolTile(1, "组间计时", "休息倒计时", Modifier.weight(1f), onRest)
+            ToolTile(5, "间歇训练", "HIIT 计时", Modifier.weight(1f), onHiit)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ToolTile(7, "1RM 估算", "极限重量与配重", Color(0xFF7C5CE0), Modifier.weight(1f), onOneRm)
-            ToolTile(6, "杠铃片", "每侧怎么加", Color(0xFF2C8C63), Modifier.weight(1f), onPlate)
+            ToolTile(7, "1RM 估算", "极限重量与配重", Modifier.weight(1f), onOneRm)
+            ToolTile(6, "杠铃片", "每侧怎么加", Modifier.weight(1f), onPlate)
         }
     }
 }
 
-@Composable private fun ToolTile(symbol: Int, title: String, subtitle: String, accent: Color,
+@Composable private fun ToolTile(symbol: Int, title: String, subtitle: String,
     modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(20.dp), color = Color.White) {
-        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center) { AppSymbol(symbol, accent) }
-            Column(Modifier.padding(start = 10.dp)) {
+        Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(PaleBlue),
+                    contentAlignment = Alignment.Center) { AppSymbol(symbol, Blue) }
+                Spacer(Modifier.weight(1f))
+                Text("↗", color = Muted, style = MaterialTheme.typography.titleLarge)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-                Text(subtitle, color = Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                Text(subtitle, color = Muted, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -277,6 +281,7 @@ private fun mmss(ms: Long): String {
         Text("按 $reps 次 × ${kg(oneRmWeight(kilos))} kg 估算", color = Muted,
             style = MaterialTheme.typography.bodySmall)
         HorizontalDivider(color = Page)
+        DetailDisclosure("强度配重表") {
         OneRmTable.rows(oneRm).chunked(4).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { (percent, grams) ->
@@ -288,6 +293,7 @@ private fun mmss(ms: Long): String {
                 }
                 repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
+        }
         }
     }
 }
@@ -355,11 +361,11 @@ private fun oneRmWeight(kilos: Double): Long = (kilos * 1000).roundToLong()
         }.sortedByDescending { it.third }
     val top = best.firstOrNull()?.third ?: 1.0
     Panel {
-        Text("动作表现", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        DetailDisclosure("动作表现") {
         if (best.isEmpty()) {
             Text("完成正式组后，这里会按动作统计容量与最大重量。", color = Muted,
                 style = MaterialTheme.typography.bodyMedium)
-            return@Panel
+            return@DetailDisclosure
         }
         best.take(6).forEach { (name, grams, volume) ->
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -371,6 +377,7 @@ private fun oneRmWeight(kilos: Double): Long = (kilos * 1000).roundToLong()
                 Text("${number(volume)} kg 容量", color = Muted, style = MaterialTheme.typography.labelSmall)
             }
         }
+    }
     }
 }
 

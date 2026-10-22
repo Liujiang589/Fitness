@@ -47,6 +47,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun setRest(seconds: Int) = act { owner.setRest(seconds) }
+    private fun restFor(active: Session): Int = active.planId
+        ?.let { id -> plans.value.firstOrNull { it.id == id }?.restSeconds }
+        ?.takeIf { it > 0 } ?: rest.value
+    fun saveQuickSet(movementId: String, setId: String, grams: Long, reps: Int) = act {
+        repo.changeActive { TrainingAssist.updateValues(it, movementId, setId, grams, reps) }
+    }
+    fun completeQuickSet(movementId: String, setId: String, grams: Long, reps: Int) = act {
+        val after = repo.changeActive { TrainingAssist.completeValues(it, movementId, setId,
+            grams, reps, restFor(it), System.currentTimeMillis()) }
+        syncRestTimer(after)
+    }
+    fun undoQuickSet(movementId: String, setId: String) = act {
+        val after = repo.changeActive { TrainingAssist.undo(it, movementId, setId, System.currentTimeMillis()) }
+        syncRestTimer(after)
+    }
     fun complete(m: String, s: String) = act {
         val active = sessions.value.firstOrNull { it.endedAt == null }
         val fallback = active?.planId?.let { planId -> plans.value.firstOrNull { it.id == planId }?.restSeconds }
@@ -98,7 +113,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.IO) {
             val stream = owner.contentResolver.openOutputStream(uri, "wt") ?: error("无法写入此位置")
             stream.bufferedWriter(Charsets.UTF_8).use { it.write(json) }
-        }; message.value = "备份已导出（格式 duolian-native v2）"
+        }; message.value = "备份已导出（格式 duolian-native v3）"
     }
     fun inspectImport(uri: Uri) = act {
         val text = withContext(Dispatchers.IO) {

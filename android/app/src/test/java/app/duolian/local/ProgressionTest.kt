@@ -183,7 +183,7 @@ class ProgressionTest {
         val plan = Plan("p", "测试", listOf("e"), sets = 2, reps = 8, scheme = SetScheme.DROP,
             restSeconds = 90, superset = SupersetMode.ALL)
         val s = Rules.start(plan, listOf(exercise), 1000).copy(note = "状态不错")
-        val backup = Backup(exercises = listOf(exercise), plans = listOf(plan), sessions = listOf(s),
+        val backup = Backup(version = 2, exercises = listOf(exercise), plans = listOf(plan), sessions = listOf(s),
             body = emptyList(), food = emptyList(), water = emptyList(), restSeconds = 90)
         val decoded = Codec.decodeFromString<Backup>(Codec.encodeToString(backup))
         Rules.backup(decoded)

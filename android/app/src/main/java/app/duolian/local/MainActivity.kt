@@ -140,7 +140,7 @@ import java.util.Locale
             }
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 FieldLabel("排期（可选，用于首页「今日安排」）")
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { i, label ->
                         val day = i + 1
                         ChoicePill(label, day in weekdays, {

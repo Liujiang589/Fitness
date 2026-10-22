@@ -48,13 +48,15 @@ val Codec = Json { encodeDefaults = true; ignoreUnknownKeys = false }
 )
 @Serializable data class Food(
     val id: String = newId(), val date: String = LocalDate.now().toString(),
-    val meal: String, val name: String, val protein: Double, val carbs: Double, val fat: Double
+    val meal: String, val name: String, val protein: Double, val carbs: Double, val fat: Double,
+    val grams: Double? = null, val catalogId: String? = null, val nutritionSource: String? = null,
+    val preparation: String? = null
 ) { val calories: Double get() = protein * 4 + carbs * 4 + fat * 9 }
 @Serializable data class Water(
     val id: String = newId(), val date: String = LocalDate.now().toString(), val ml: Int
 )
 @Serializable data class Backup(
-    val format: String = "duolian-native", val version: Int = 2,
+    val format: String = "duolian-native", val version: Int = 3,
     val exercises: List<Exercise>, val plans: List<Plan>, val sessions: List<Session>,
     val body: List<Body>, val food: List<Food>, val water: List<Water>, val restSeconds: Int = 60,
     val hiitRuns: List<HiitRun> = emptyList()
@@ -116,7 +118,8 @@ object Rules {
         val rest = restAfter(s, movement, target, seconds)
         return s.copy(movements = s.movements.map { m -> if (m.id != movementId) m else m.copy(
             sets = m.sets.map { if (it.id == setId) it.copy(done = !it.done) else it }) },
-            restDeadline = if (!target.done && rest > 0) now + rest * 1000L else s.restDeadline)
+            restDeadline = if (!target.done && rest > 0) now + rest * 1000L else null,
+            restRemainingMs = 0)
     }
     /** Rest length for the set that just changed state: set override → superset transition → fallback. */
     fun restAfter(s: Session, m: Movement, set: TrainingSet, fallback: Int): Int {
@@ -151,6 +154,11 @@ object Rules {
         id(x.id); date(x.date); label(x.name)
         require(x.meal in listOf("早餐", "午餐", "晚餐", "加餐")) { "请选择有效餐次" }
         require(listOf(x.protein, x.carbs, x.fat).all { it.isFinite() && it in 0.0..1000.0 }) { "营养素需为0–1000g" }
+        require(x.grams == null || (x.grams.isFinite() && x.grams in 0.1..3000.0)) { "食物重量需为0.1–3000g" }
+        require(x.grams == null || x.protein + x.carbs + x.fat <= x.grams * 1.01) { "营养素合计不能超过食物重量，请检查标签单位" }
+        require(x.catalogId == null || x.catalogId.matches(Regex("[a-zA-Z0-9_-]{1,80}"))) { "食物条目无效" }
+        require(x.nutritionSource == null || x.nutritionSource.length <= 200) { "营养来源过长" }
+        require(x.preparation == null || x.preparation.length <= 80) { "食物状态过长" }
     }
     fun water(x: Water) { id(x.id); date(x.date); require(x.ml in 1..10000) { "饮水量需为1–10000ml" } }
     fun hiitTemplate(t: HiitTemplate) {
@@ -167,7 +175,7 @@ object Rules {
         require(r.workSeconds in 5..600 && r.restSeconds in 0..600 && r.rounds in 1..100) { "记录参数无效" }
     }
     fun backup(b: Backup) {
-        require(b.format == "duolian-native" && b.version in 1..2) { "不兼容此备份格式；预览版和原版备份暂不支持" }
+        require(b.format == "duolian-native" && b.version in 1..3) { "不兼容此备份格式；支持独练 v1 / v2 / v3" }
         require(b.restSeconds in 0..600)
         unique(b.exercises.map { it.id }, 1000); b.exercises.forEach(::exercise)
         unique(b.plans.map { it.id }, 1000); b.plans.forEach { plan(it, b.exercises) }

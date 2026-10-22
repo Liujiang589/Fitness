@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>独练 · 最新版下载</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f5f0;color:#20261f;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.65}
+main{max-width:1030px;margin:auto;padding:40px 26px}header{display:flex;align-items:center;gap:12px;font-weight:750;font-size:22px;letter-spacing:.5px}.logo{background:#20261f;color:#d5f578;border-radius:14px;width:46px;height:46px;padding:9px}.edition{margin-left:auto;color:#72786d;font-size:11px;letter-spacing:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(260px,1fr);gap:24px;margin-top:38px}.hero{background:#20261f;color:#fff;border-radius:30px;padding:36px;position:relative;overflow:hidden}.eyebrow{font-size:11px;letter-spacing:2px;color:#d5f578;font-weight:700}.hero h1{font-size:clamp(32px,4vw,49px);line-height:1.3;letter-spacing:-1.4px;margin:24px 0 16px}.hero p{color:#b3bda9;font-size:14px;max-width:340px}.badge{display:inline-block;border:1px solid #536047;color:#d5f578;border-radius:30px;padding:5px 12px;font-size:12px}.download{display:flex;justify-content:space-between;align-items:center;background:#d5f578;color:#20261f;text-decoration:none;border-radius:16px;padding:16px 20px;font-weight:750;margin-top:29px;min-height:56px}.download:hover{background:#e2ffa0}.arrow{font-size:25px}.meta{display:flex;gap:16px;color:#b3bda9;font-size:12px;margin-top:16px}.qr{background:white;border:1px solid #e6e8de;border-radius:30px;padding:25px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center}.qr h2{font-size:21px;margin:5px 0}.qr p{font-size:13px;color:#72786d;margin:4px 0}.qr img{width:220px;max-width:100%;height:auto;image-rendering:pixelated;margin:12px 0}.address{font-size:12px;color:#466329;word-break:break-all}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:26px}.step{border-top:1px solid #dce0d3;padding:19px 4px}.step b{font-size:15px;display:block;margin-top:8px}.step small{font-size:11px;letter-spacing:1px;color:#466329}.step p{font-size:13px;color:#72786d;margin:5px 0}.notice{padding:16px 20px;background:#fff0d9;border:1px solid #e7cc9b;border-radius:16px;font-size:14px;margin-top:20px}footer{color:#72786d;font-size:12px;margin-top:26px}details{margin-top:18px}code{overflow-wrap:anywhere;font-size:11px}.download:focus-visible,summary:focus-visible{outline:3px solid #466329;outline-offset:4px}
+@media(max-width:680px){main{padding:24px 18px}.edition{font-size:9px;letter-spacing:1px}.grid{grid-template-columns:1fr;gap:18px;margin-top:25px}.hero{padding:26px;border-radius:25px}.qr{padding:20px;border-radius:25px}.qr img{width:180px}.steps{grid-template-columns:1fr;gap:0}.step{padding:14px 4px}.hero h1{font-size:35px}.qr p{max-width:100%}}
+</style>
+<main>
+<header><svg class="logo" viewBox="0 0 80 80" aria-hidden="true"><g fill="currentColor"><path d="M12 35H68V45H12zM6 22H15V58H6zM19 15H29V65H19zM51 15H61V65H51zM65 22H74V58H65z"/></g></svg>独练 <span class="edition">DUOLIAN / RELEASE</span></header>
+<div class="notice" id="wechat" hidden>你正在微信内打开。请点右上角「⋯」，选择「在浏览器打开」，再点击下载。</div>
+<div class="grid"><section class="hero"><div class="eyebrow">YOUR NEXT SESSION STARTS HERE</div><h1>为自己，<br>再进一步。</h1><p>训练、饮食和每一次进步，<br>都留在自己的节奏里。</p><span class="badge">独练 $version · 最新开发版</span><a class="download" href="/latest.apk"><span>下载 Android 安装包</span><span class="arrow">↗</span></a><div class="meta"><span>Android 8.0 及以上</span><span>APK · $size MB</span></div></section>
+<aside class="qr"><h2>用手机浏览器扫码</h2><p>同一 Wi-Fi 下，打开最新版下载页</p><img src="/qr.png" alt="独练局域网下载二维码" width="370" height="370"><a class="address" href="$url">$url</a></aside></div>
+<div class="steps"><section class="step"><small>01 / CONNECT</small><b>连接同一 Wi-Fi</b><p>电脑保持开机，并运行下载入口。</p></section><section class="step"><small>02 / DOWNLOAD</small><b>浏览器直接下载 APK</b><p>下载原始安装包，无需解压或改名。</p></section><section class="step"><small>03 / INSTALL</small><b>按系统提示安装</b><p>首次可能需允许浏览器安装应用；同签名可覆盖升级。</p></section></div>
+<footer>本入口仅在当前局域网使用，未上传安装包到外部托管平台。下载完成后，请在浏览器下载列表或通知中点击 APK 安装。<details><summary>查看安装包校验信息</summary><p>SHA-256<br><code>$sha</code></p></details></footer>
+</main>
+<script>if(/MicroMessenger/i.test(navigator.userAgent)){document.getElementById('wechat').hidden=false}</script>
+</html>

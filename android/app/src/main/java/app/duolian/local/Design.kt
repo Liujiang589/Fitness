@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -36,11 +37,15 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal val Ink = Color(0xFF17212F)
-internal val Muted = Color(0xFF788394)
-internal val Blue = Color(0xFF2582F5)
-internal val Page = Color(0xFFF3F5F8)
-internal val PaleBlue = Color(0xFFEBF3FF)
+internal val Ink = Color(0xFF20251F)
+internal val Muted = Color(0xFF72786D)
+// Semantic legacy name retained so every existing chart and form shares the new palette.
+internal val Blue = Color(0xFF466329)
+internal val Page = Color(0xFFF5F5F0)
+internal val PaleBlue = Color(0xFFECF1DF)
+internal val Volt = Color(0xFFD5F578)
+internal val Night = Color(0xFF20261F)
+internal val Hairline = Color(0xFFE6E8DE)
 internal fun kg(g: Long) = String.format(Locale.US, "%.3f", g / 1000.0).trimEnd('0').trimEnd('.')
 internal fun number(n: Double) = String.format(Locale.US, "%.1f", n)
 internal fun clock(ms: Long): String {
@@ -52,14 +57,15 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
 
 @Composable internal fun Panel(modifier: Modifier = Modifier, color: Color = Color.White,
     content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), color = color) {
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = color,
+        border = BorderStroke(1.dp, if (color == Color.White) Hairline else Color.Transparent)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
 @Composable internal fun Section(title: String, action: String? = null, onClick: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
         if (action != null) TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 4.dp)) { Text(action) }
     }
 }
@@ -72,7 +78,13 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
 }
 
 @Composable internal fun EmptyPanel(title: String, message: String) {
-    Panel { Text(title, fontWeight = FontWeight.SemiBold); Text(message, color = Muted, style = MaterialTheme.typography.bodyMedium) }
+    Panel {
+        Box(Modifier.size(42.dp).background(PaleBlue, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+            AppSymbol(5, Blue, Modifier.size(22.dp))
+        }
+        Text(title, fontWeight = FontWeight.SemiBold)
+        Text(message, color = Muted, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 @Composable internal fun AppSymbol(kind: Int, color: Color, modifier: Modifier = Modifier.size(23.dp)) {
@@ -122,27 +134,43 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
     }
 }
 
-/** Independently drawn category illustrations, not exercise-technique diagrams. */
+/** Original muscle-category silhouette; this is not an exercise-technique diagram. */
 @Composable internal fun ExerciseArt(muscle: String, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val w=size.width; val h=size.height; val c=Color(0xFFBBC7D6); val stroke=w*.037f
-        fun line(x:Float,y:Float,a:Float,b:Float,color:Color=c,width:Float=stroke)=drawLine(color,Offset(w*x,h*y),Offset(w*a,h*b),width,StrokeCap.Round)
-        drawCircle(Color(0xFFF0F5FC),h*.43f,Offset(w*.5f,h*.48f))
-        drawCircle(Ink,h*.065f,Offset(w*.5f,h*.18f))
-        line(.5f,.29f,.5f,.58f,Ink,stroke*1.2f)
-        line(.5f,.58f,.37f,.86f,Ink);line(.5f,.58f,.64f,.86f,Ink)
-        val upper = muscle in listOf("肩部","手臂","背部")
-        line(.5f,.33f,.29f,if(upper) .26f else .47f,Ink)
-        line(.5f,.33f,.71f,if(upper) .26f else .47f,Ink)
-        line(.29f,if(upper) .26f else .47f,.22f,if(upper) .13f else .34f,Ink)
-        line(.71f,if(upper) .26f else .47f,.78f,if(upper) .13f else .34f,Ink)
-        if(muscle in listOf("腿部","小腿")) {line(.5f,.61f,.39f,.81f,Blue,stroke*1.4f);line(.5f,.61f,.62f,.81f,Blue,stroke*1.4f)}
-        else if(muscle=="腹部") line(.5f,.43f,.5f,.56f,Blue,stroke*1.6f)
-        else {line(.41f,.35f,.59f,.35f,Blue,stroke*1.6f)}
-        line(.14f,if(upper).13f else .34f,.3f,if(upper).13f else .34f,Blue)
-        line(.7f,if(upper).13f else .34f,.86f,if(upper).13f else .34f,Blue)
-        line(.15f,if(upper).08f else .29f,.15f,if(upper).18f else .39f,Blue)
-        line(.85f,if(upper).08f else .29f,.85f,if(upper).18f else .39f,Blue)
+        val unit = size.minDimension
+        val ox = (size.width - unit) / 2
+        val oy = (size.height - unit) / 2
+        fun point(x: Float, y: Float) = Offset(ox + unit * x, oy + unit * y)
+        val neutral = Color(0xFFC3CAB9)
+        drawCircle(PaleBlue, unit * .46f, point(.5f, .5f))
+        drawCircle(neutral, unit * .075f, point(.5f, .13f))
+        fun limb(x: Float, y: Float, a: Float, b: Float, width: Float, color: Color) =
+            drawLine(color, point(x, y), point(a, b), unit * width, StrokeCap.Round)
+        val torso = Path().apply {
+            moveTo(point(.34f, .25f).x, point(.34f, .25f).y)
+            quadraticTo(point(.5f, .2f).x, point(.5f, .2f).y, point(.66f, .25f).x, point(.66f, .25f).y)
+            lineTo(point(.59f, .53f).x, point(.59f, .53f).y)
+            lineTo(point(.41f, .53f).x, point(.41f, .53f).y)
+            close()
+        }
+        drawPath(torso, if (muscle == "背部") Blue else neutral)
+        listOf(-1f, 1f).forEach { side ->
+            limb(.5f + side * .15f, .28f, .5f + side * .23f, .44f, .085f,
+                if (muscle == "肩部") Blue else neutral)
+            limb(.5f + side * .23f, .44f, .5f + side * .27f, .57f, .065f,
+                if (muscle == "手臂") Blue else neutral)
+            limb(.5f + side * .06f, .54f, .5f + side * .10f, .73f, .115f,
+                if (muscle == "腿部") Blue else neutral)
+            limb(.5f + side * .10f, .73f, .5f + side * .12f, .92f, .075f,
+                if (muscle == "小腿") Blue else neutral)
+        }
+        if (muscle == "胸部") {
+            limb(.39f, .3f, .47f, .31f, .1f, Blue)
+            limb(.53f, .31f, .61f, .3f, .1f, Blue)
+        }
+        if (muscle == "腹部") {
+            listOf(.38f, .44f, .5f).forEach { y -> limb(.47f, y, .53f, y, .045f, Blue) }
+        }
     }
 }
 
@@ -164,7 +192,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
         if (label.isNotBlank()) FieldLabel(label)
         Surface(shape = RoundedCornerShape(15.dp),
             color = if (focused) Color.White else Page,
-            border = BorderStroke(1.5.dp, if (focused) Blue else Color(0xFFE7ECF3)),
+            border = BorderStroke(1.5.dp, if (focused) Blue else Hairline),
             modifier = Modifier.fillMaxWidth()) {
             BasicTextField(
                 value = value,
@@ -197,7 +225,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
     modifier: Modifier = Modifier, accent: Color = Blue) {
     Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(13.dp),
         color = if (selected) accent else Color.White,
-        border = if (selected) null else BorderStroke(1.dp, Color(0xFFE7ECF3))) {
+        border = if (selected) null else BorderStroke(1.dp, Hairline)) {
         Text(text, Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
             color = if (selected) Color.White else Ink,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -234,7 +262,8 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
 
 /** White rounded container that groups setting rows. */
 @Composable internal fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Color.White) {
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White,
+        border = BorderStroke(1.dp, Hairline)) {
         Column(content = content)
     }
 }
