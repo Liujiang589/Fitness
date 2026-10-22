@@ -91,7 +91,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
             0->if(nutrition)NutritionPage(food,water,vm,a)else TrainingPage(vm,exercises,plans,sessions,food,water,busy,a)
             1->ToolsPage(sessions,vm,hiitRuns)
             2->ExercisePage(exercises,a)
-            3->HistoryPage(sessions,exercises,plans,vm,a)
+            3->HistoryPage(sessions,exercises,plans,body,food,vm,a)
             else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("Duolian-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("Duolian-before-import.json")})
         }
     }}

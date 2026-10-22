@@ -167,25 +167,19 @@ internal class ScreenActions(
     }
 }
 
-@Composable internal fun HistoryPage(sessions: List<Session>, exercises: List<Exercise>, plans: List<Plan>, vm: MainViewModel,a: ScreenActions){
+@Composable internal fun HistoryPage(sessions: List<Session>, exercises: List<Exercise>, plans: List<Plan>,
+    body: List<Body>, food: List<Food>, vm: MainViewModel,a: ScreenActions){
     var range by rememberSaveable{mutableStateOf("全部")};var selected by rememberSaveable{mutableStateOf<String?>(null)}
+    var days by rememberSaveable{mutableStateOf(30)}
     val all=sessions.filter{it.endedAt!=null}.sortedByDescending{it.startedAt}
     val history=all.filter{range=="全部"||Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()>=LocalDate.now().minusDays(if(range=="近7天")6 else 29)}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+        item{TrainingLoadPanel(all,days){days=it}}
+        item{BodyPanel(body)}
+        item{NutritionPanel(food)}
+        item{MusclePanel(all,exercises)}
+        item{RecordsPanel(all)}
         item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("全部","近7天","近30天").forEach{r->FilterChip(range==r,{range=r},label={Text(r)})}}}
-        item{Panel{
-            Text("累计 ${all.size} 次训练",fontWeight=FontWeight.SemiBold)
-            Row{Stat(history.size.toString(),"所选训练",Modifier.weight(1f));Stat(number(history.sumOf{Rules.volumeKg(it)}),"容量 kg",Modifier.weight(1f));Stat((history.sumOf{Rules.elapsedMs(it,it.endedAt!!)}/60000).toString(),"时长 min",Modifier.weight(1f))}
-            HorizontalDivider(color=Page);Text("最近训练容量",color=Muted,style=MaterialTheme.typography.labelMedium)
-            val recent=history.take(7).reversed();val max=recent.maxOfOrNull{Rules.volumeKg(it)}?.coerceAtLeast(1.0)?:1.0
-            Row(Modifier.fillMaxWidth().height(100.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.Bottom){
-                recent.forEach{s->Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally){
-                    Box(Modifier.fillMaxWidth(.6f).height((Rules.volumeKg(s)/max*67).toFloat().coerceAtLeast(3f).dp).clip(RoundedCornerShape(topStart=5.dp,topEnd=5.dp)).background(Blue))
-                    Spacer(Modifier.height(6.dp));Text(stamp(s.startedAt).take(5),color=Muted,style=MaterialTheme.typography.labelSmall)
-                }}
-                if(recent.isEmpty())Text("完成训练后生成容量图",color=Muted,style=MaterialTheme.typography.bodySmall)
-            }
-        }}
         item{Section("训练记录")}
         if(history.isEmpty())item{EmptyPanel("还没有训练记录","完成并保存一次训练，就能查看每组明细与容量。")}
         items(history,key={it.id}){s->Panel{
@@ -240,5 +234,118 @@ internal class ScreenActions(
         }
         item{Section("饮水记录","＋ 记录",{a.auxiliary("water:$date")})}
         items(water.filter{it.date==date},key={it.id}){w->Panel{Row(verticalAlignment=Alignment.CenterVertically){Text("${w.ml} ml",Modifier.weight(1f),fontWeight=FontWeight.SemiBold);TextButton(onClick={a.ask("删除此饮水记录？"){vm.act{vm.repo.deleteWater(w.id)}}}){Text("删除")}}}}
+    }
+}
+
+@Composable private fun TrainingLoadPanel(sessions: List<Session>, days: Int, onDays: (Int) -> Unit) {
+    val daily = remember(sessions, days) { Analytics.daily(sessions, days) }
+    val volume = daily.sumOf { it.volumeKg }
+    val count = daily.sumOf { it.sessions }
+    val minutes = daily.sumOf { it.minutes }
+    val streak = remember(sessions) { Analytics.streak(sessions) }
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("训练负荷", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleLarge)
+            listOf(7, 30, 90).forEach { d ->
+                FilterChip(selected = days == d, onClick = { onDays(d) },
+                    label = { Text("${d}天", style = MaterialTheme.typography.labelSmall) },
+                    modifier = Modifier.padding(start = 4.dp))
+            }
+        }
+        Row {
+            Stat(number(volume), "容量 kg", Modifier.weight(1f))
+            Stat(count.toString(), "训练次数", Modifier.weight(1f))
+            Stat(streak.toString(), "连续天数", Modifier.weight(1f))
+        }
+        BarChart(values = daily.map { it.volumeKg.toFloat() },
+            labels = daily.map { "${it.date.monthValue}/${it.date.dayOfMonth}" },
+            labelEvery = when { days <= 7 -> 1; days <= 30 -> 4; else -> 10 })
+        Text("合计 $minutes 分钟 · 每天容量（kg）随训练记录累积", color = Muted,
+            style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable private fun BodyPanel(body: List<Body>) {
+    Panel {
+        Text("身体趋势", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        if (body.isEmpty()) {
+            Text("记录体重后生成趋势曲线。", color = Muted, style = MaterialTheme.typography.bodyMedium)
+            return@Panel
+        }
+        val ordered = body.sortedBy { it.date }
+        val latest = ordered.last()
+        val delta = (latest.grams - ordered.first().grams) / 1000.0
+        Row {
+            Stat(kg(latest.grams), "最近体重 kg", Modifier.weight(1f))
+            Stat((if (delta >= 0) "+" else "") + String.format(java.util.Locale.US, "%.1f", delta), "自首次变化 kg",
+                Modifier.weight(1f), accent = if (delta <= 0) Color(0xFF2C8C63) else Ink)
+            Stat(latest.fatPercent?.let { number(it) + "%" } ?: "—", "最近体脂", Modifier.weight(1f))
+        }
+        LineChart(ordered.map { it.grams / 1000f }, Modifier.fillMaxWidth().height(90.dp))
+        Text("${ordered.size} 条记录 · ${ordered.first().date} 至 ${ordered.last().date}", color = Muted,
+            style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable private fun NutritionPanel(food: List<Food>) {
+    val today = LocalDate.now()
+    val macros = remember(food) { Analytics.macros(food, today.minusDays(6), today) }
+    val average = remember(food) { Analytics.averageCalories(food, 7, today) }
+    Panel {
+        Text("近 7 天饮食", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MacroRing(macros.protein, macros.carbs, macros.fat, Modifier.size(96.dp))
+            Column(Modifier.weight(1f).padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("日均 ${number(average)} kcal", fontWeight = FontWeight.SemiBold)
+                Text("蛋白 ${number(macros.protein)} g · 碳水 ${number(macros.carbs)} g · 脂肪 ${number(macros.fat)} g",
+                    color = Muted, style = MaterialTheme.typography.bodySmall)
+                Text("按有记录的日期平均，不是每周固定配额。", color = Muted, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable private fun MusclePanel(sessions: List<Session>, exercises: List<Exercise>) {
+    val distribution = remember(sessions, exercises) { Analytics.volumeByMuscle(sessions, exercises) }
+    Panel {
+        Text("肌群容量分布", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        if (distribution.isEmpty()) {
+            Text("完成带重量的正式组后统计。", color = Muted, style = MaterialTheme.typography.bodyMedium)
+            return@Panel
+        }
+        val total = distribution.sumOf { it.second }.coerceAtLeast(1.0)
+        distribution.take(6).forEach { (muscle, volume) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(muscle, Modifier.width(56.dp), style = MaterialTheme.typography.bodyMedium)
+                ShareBar((volume / total).toFloat(), Modifier.weight(1f).height(8.dp))
+                Text("${number(volume)} kg", Modifier.width(84.dp), color = Muted,
+                    style = MaterialTheme.typography.labelSmall, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
+        }
+    }
+}
+
+@Composable private fun RecordsPanel(sessions: List<Session>) {
+    val records = remember(sessions) { Analytics.records(sessions) }
+    Panel {
+        Text("个人纪录", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        if (records.isEmpty()) {
+            Text("完成正式组后按 Epley 估算记录最佳表现。", color = Muted,
+                style = MaterialTheme.typography.bodyMedium)
+            return@Panel
+        }
+        records.take(6).forEach { r ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(r.name, fontWeight = FontWeight.SemiBold)
+                    Text("${r.date} · 最重 ${kg(r.grams)} kg", color = Muted,
+                        style = MaterialTheme.typography.labelSmall)
+                }
+                Text("${kg(r.oneRm)} kg", color = Blue, fontWeight = FontWeight.Bold)
+            }
+        }
+        Text("1RM 为估算值，仅用于比较同一动作的进步。", color = Muted,
+            style = MaterialTheme.typography.labelSmall)
     }
 }
