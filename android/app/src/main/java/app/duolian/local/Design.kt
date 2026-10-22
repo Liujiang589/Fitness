@@ -76,6 +76,11 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
             2 -> { line(.2f,.5f,.8f,.5f);line(.2f,.3f,.2f,.7f);line(.32f,.22f,.32f,.78f);line(.68f,.22f,.68f,.78f);line(.8f,.3f,.8f,.7f) }
             3 -> { line(.18f,.8f,.88f,.8f);line(.28f,.65f,.28f,.42f);line(.5f,.65f,.5f,.2f);line(.72f,.65f,.72f,.34f) }
             4 -> { drawCircle(color,w*.15f,Offset(w*.5f,h*.3f),style=Stroke(s));drawArc(color,180f,180f,false,Offset(w*.2f,h*.56f),Size(w*.6f,h*.5f),style=Stroke(s)) }
+            5 -> { line(.58f,.1f,.3f,.55f);line(.3f,.55f,.52f,.55f);line(.52f,.55f,.4f,.9f);line(.4f,.9f,.74f,.4f);line(.74f,.4f,.5f,.4f) }
+            6 -> { drawCircle(color,w*.36f,Offset(w*.5f,h*.5f),style=Stroke(s));drawCircle(color,w*.09f,Offset(w*.5f,h*.5f),style=Stroke(s)) }
+            7 -> { drawRoundRect(color,Offset(w*.16f,h*.14f),Size(w*.68f,h*.74f),CornerRadius(w*.09f),style=Stroke(s));
+                drawRoundRect(color,Offset(w*.26f,h*.24f),Size(w*.48f,h*.18f),CornerRadius(w*.03f),style=Stroke(s));
+                listOf(.3f,.5f,.7f).forEach{x->line(x,.62f,x,.76f)};listOf(.3f,.5f,.7f).forEach{x->line(x,.84f,x,.84f)} }
             else -> {line(.5f,.2f,.5f,.8f);line(.2f,.5f,.8f,.5f)}
         }
     }

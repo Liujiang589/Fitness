@@ -1,10 +1,11 @@
-package app.duolian.local
+﻿package app.duolian.local
 
-import android.os.SystemClock
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -13,90 +14,159 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.duolian.local.domain.*
+import app.duolian.local.timer.TimerService
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToLong
 
 private val hiitPresets = listOf(
-    HiitEngine.preset("经典 20/10 × 8", 20, 10, 8),
-    HiitEngine.preset("Tabata 20/10 × 8", 20, 10, 8, prepare = 10),
-    HiitEngine.preset("燃脂 30/15 × 10", 30, 15, 10),
-    HiitEngine.preset("耐力 40/20 × 6", 40, 20, 6)
+    HiitEngine.preset("经典", 20, 10, 8),
+    HiitEngine.preset("Tabata", 20, 10, 8, prepare = 10),
+    HiitEngine.preset("燃脂", 30, 15, 10),
+    HiitEngine.preset("耐力", 40, 20, 6)
 )
 
+private fun mmss(ms: Long): String {
+    val total = ((ms + 999) / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(total / 60, total % 60)
+}
+
 @Composable internal fun ToolsPage(sessions: List<Session>, vm: MainViewModel, hiitRuns: List<HiitRun>) {
-    var weight by rememberSaveable { mutableStateOf("") }; var reps by rememberSaveable { mutableStateOf("5") }
-    val w = weight.toDoubleOrNull(); val r = reps.toIntOrNull()
-    val estimate = if (w != null && w.isFinite() && w > 0 && w <= 1000 && r != null && r in 1..30)
-        Progression.oneRm((w * 1000).toLong(), r) else null
-    val best = sessions.filter { it.endedAt != null }.flatMap { it.movements }.groupBy { it.exerciseId }
-        .mapNotNull { (_, moves) ->
-            val sets = moves.flatMap { it.sets }.filter { it.countsVolume }
-            if (sets.isEmpty()) null else Triple(moves.first().name, sets.maxOf { it.grams },
-                sets.sumOf { it.grams * it.reps } / 1000.0)
-        }.sortedByDescending { it.third }
-    LazyColumn(Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        item { HiitPanel(vm, hiitRuns) }
-        item {
-            Panel {
-                Text("1RM 估算", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("用一次正式组记录，估算单次最大重量。", color = Muted, style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(weight, { weight = it }, label = { Text("重量 kg") }, singleLine = true,
-                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    OutlinedTextField(reps, { reps = it }, label = { Text("次数 1–30") }, singleLine = true,
-                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                }
-                Text(if (estimate == null) "— kg" else "${kg(estimate)} kg",
-                    style = MaterialTheme.typography.headlineLarge, color = Blue, fontWeight = FontWeight.Bold)
-                Text("Epley 公式，仅为估算；次数越高偏差可能越大。", color = Muted, style = MaterialTheme.typography.bodySmall)
-            }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    fun jumpTo(index: Int) { scope.launch { listState.animateScrollToItem(index) } }
+
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { ToolGrid(onRest = { jumpTo(1) }, onHiit = { jumpTo(2) }, onOneRm = { jumpTo(3) }, onPlate = { jumpTo(4) }) }
+        item { RestTimerCard() }
+        item { HiitCard(vm) }
+        item { OneRmCard() }
+        item { PlateCard() }
+        item { PerformanceCard(sessions) }
+        if (hiitRuns.isNotEmpty()) item { HiitHistoryCard(hiitRuns) }
+    }
+}
+
+@Composable private fun ToolGrid(onRest: () -> Unit, onHiit: () -> Unit, onOneRm: () -> Unit, onPlate: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ToolTile(1, "组间计时", "休息倒计时", Blue, Modifier.weight(1f), onRest)
+            ToolTile(5, "间歇训练", "HIIT 计时", Color(0xFFE5534B), Modifier.weight(1f), onHiit)
         }
-        item { Section("动作表现") }
-        if (best.isEmpty()) item {
-            EmptyPanel("等待第一条训练记录", "完成正式组后，这里会统计各动作的最大记录重量与总容量。")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ToolTile(7, "1RM 估算", "极限重量与配重", Color(0xFF7C5CE0), Modifier.weight(1f), onOneRm)
+            ToolTile(6, "杠铃片", "每侧怎么加", Color(0xFF2C8C63), Modifier.weight(1f), onPlate)
         }
-        items(best) { x ->
-            Panel {
-                Text(x.first, fontWeight = FontWeight.SemiBold)
-                Row {
-                    Stat(kg(x.second), "最大记录 kg", Modifier.weight(1f))
-                    Stat(number(x.third), "累计容量 kg", Modifier.weight(1f))
-                }
+    }
+}
+
+@Composable private fun ToolTile(symbol: Int, title: String, subtitle: String, accent: Color,
+    modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(20.dp), color = Color.White) {
+        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center) { AppSymbol(symbol, accent) }
+            Column(Modifier.padding(start = 10.dp)) {
+                Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                Text(subtitle, color = Muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             }
         }
     }
 }
 
-@Composable private fun HiitPanel(vm: MainViewModel, runs: List<HiitRun>) {
+@Composable private fun RestTimerCard() {
+    val context = LocalContext.current
+    var seconds by rememberSaveable { mutableIntStateOf(60) }
+    var deadline by remember { mutableStateOf<Long?>(null) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val remaining = ((deadline ?: 0L) - now).coerceAtLeast(0L)
+    val running = deadline != null
+
+    LaunchedEffect(deadline) {
+        while (deadline != null) {
+            now = System.currentTimeMillis()
+            if (now >= (deadline ?: 0L)) { deadline = null; break }
+            delay(150)
+        }
+    }
+
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("组间计时", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f))
+            Text(if (running) "计时中" else "${seconds}s", color = Blue,
+                style = MaterialTheme.typography.labelLarge)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircleProgress(
+                progress = if (running) remaining / (seconds * 1000f).coerceAtLeast(1f) else 0f,
+                modifier = Modifier.size(118.dp), color = Blue) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(mmss(if (running) remaining else seconds * 1000L),
+                        style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(if (running) "剩余" else "准备", color = Muted, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(enabled = !running, onClick = { seconds = (seconds - 15).coerceAtLeast(15) },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) { Text("−15") }
+                    OutlinedButton(enabled = !running, onClick = { seconds = (seconds + 15).coerceAtMost(900) },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) { Text("+15") }
+                }
+                Button(onClick = {
+                    if (running) { deadline = null; TimerService.stop(context) }
+                    else {
+                        val target = System.currentTimeMillis() + seconds * 1000L
+                        now = System.currentTimeMillis(); deadline = target
+                        TimerService.startRest(context, target)
+                    }
+                }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp)) {
+                    Text(if (running) "停止计时" else "开始休息")
+                }
+            }
+        }
+        Text("锁屏或切到后台后会在通知栏继续倒计时。", color = Muted,
+            style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable private fun HiitCard(vm: MainViewModel) {
+    val busy by vm.busy.collectAsStateWithLifecycle()
     var presetIndex by rememberSaveable { mutableIntStateOf(0) }
-    var work by rememberSaveable { mutableStateOf(hiitPresets[0].workSeconds.toString()) }
-    var rest by rememberSaveable { mutableStateOf(hiitPresets[0].restSeconds.toString()) }
-    var rounds by rememberSaveable { mutableStateOf(hiitPresets[0].rounds.toString()) }
-    var prepare by rememberSaveable { mutableStateOf(hiitPresets[0].prepareSeconds.toString()) }
+    var work by rememberSaveable { mutableStateOf("20") }
+    var rest by rememberSaveable { mutableStateOf("10") }
+    var rounds by rememberSaveable { mutableStateOf("8") }
+    var prepare by rememberSaveable { mutableStateOf("5") }
+    var custom by rememberSaveable { mutableStateOf(false) }
     var running by remember { mutableStateOf<HiitTemplate?>(null) }
     var startElapsed by remember { mutableStateOf(0L) }
     var startWall by remember { mutableStateOf(0L) }
-    var now by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var error by remember { mutableStateOf<String?>(null) }
-    val busy by vm.busy.collectAsStateWithLifecycle()
 
     LaunchedEffect(running) {
-        while (running != null) { now = SystemClock.elapsedRealtime(); delay(200) }
+        while (running != null) { now = System.currentTimeMillis(); delay(200) }
     }
     val template = running
-    val phase = template?.let { HiitEngine.phaseAt(it, now - startElapsed) }
+    val phase = template?.let { HiitEngine.phaseAt(it, now - startWall) }
 
-    fun finishRun(t: HiitTemplate, elapsed: Long) {
+    fun finish(t: HiitTemplate) {
+        val elapsed = System.currentTimeMillis() - startWall
         val completed = HiitEngine.completedRounds(t, elapsed)
         vm.stopTimer()
         vm.saveHiitRun(HiitRun(templateId = t.id, name = t.name, startedAt = startWall,
@@ -105,96 +175,216 @@ private val hiitPresets = listOf(
         running = null
     }
 
-    // The run ends on its own once the last interval elapses.
-    LaunchedEffect(phase?.kind) {
-        if (template != null && phase?.kind == HiitPhaseKind.DONE) {
-            finishRun(template, now - startElapsed)
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("间歇训练", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f))
+            Text("HIIT", color = Muted, style = MaterialTheme.typography.labelLarge)
         }
-    }
-
-    Panel(color = if (template == null) Color.White else PaleBlue) {
-        Text("间歇训练 HIIT", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         if (template == null) {
-            Text("选择模板或自定义时间，计时会在后台继续并显示在通知栏。", color = Muted,
-                style = MaterialTheme.typography.bodyMedium)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 hiitPresets.forEachIndexed { i, p ->
                     FilterChip(selected = presetIndex == i, onClick = {
                         presetIndex = i
                         work = p.workSeconds.toString(); rest = p.restSeconds.toString()
                         rounds = p.rounds.toString(); prepare = p.prepareSeconds.toString()
-                    }, label = { Text(p.name) })
+                    }, label = { Text("${p.name} ${p.workSeconds}/${p.restSeconds}") })
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(work, { work = it }, label = { Text("训练 秒") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(rest, { rest = it }, label = { Text("休息 秒") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("${work}s 训练 · ${rest}s 休息 · ${rounds} 轮", fontWeight = FontWeight.SemiBold)
+                    Text("总时长 ${mmss(HiitEngine.totalMs(HiitTemplate(name = "x",
+                        prepareSeconds = prepare.toIntOrNull() ?: 0, workSeconds = work.toIntOrNull() ?: 20,
+                        restSeconds = rest.toIntOrNull() ?: 10, rounds = rounds.toIntOrNull() ?: 1)))}",
+                        color = Muted, style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = { custom = !custom }) { Text(if (custom) "收起" else "自定义") }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(rounds, { rounds = it }, label = { Text("轮数") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(prepare, { prepare = it }, label = { Text("准备 秒") }, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            if (custom) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(work, { work = it }, label = { Text("训练 s") }, singleLine = true,
+                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(rest, { rest = it }, label = { Text("休息 s") }, singleLine = true,
+                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(rounds, { rounds = it }, label = { Text("轮数") }, singleLine = true,
+                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    OutlinedTextField(prepare, { prepare = it }, label = { Text("准备 s") }, singleLine = true,
+                        modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
             }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             val candidate = HiitTemplate(name = hiitPresets[presetIndex].name,
                 prepareSeconds = prepare.toIntOrNull() ?: -1, workSeconds = work.toIntOrNull() ?: -1,
                 restSeconds = rest.toIntOrNull() ?: -1, rounds = rounds.toIntOrNull() ?: -1)
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(enabled = !busy, onClick = {
                 runCatching {
                     Rules.hiitTemplate(candidate)
                     running = candidate
-                    startElapsed = SystemClock.elapsedRealtime(); startWall = System.currentTimeMillis()
-                    now = startElapsed; error = null
+                    startWall = System.currentTimeMillis(); now = startWall; error = null
                     vm.startHiitTimer(candidate)
                 }.onFailure { error = it.message ?: "参数无效" }
             }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(13.dp),
                 contentPadding = PaddingValues(13.dp)) { Text("开始间歇训练") }
-            Text("训练时间 5–600 秒，休息 0–600 秒，1–100 轮。Android 13 及以上需要在系统设置中允许通知，才能看到倒计时通知。",
-                color = Muted, style = MaterialTheme.typography.bodySmall)
         } else {
             val kind = phase?.kind ?: HiitPhaseKind.PREPARE
-            val color = when (kind) {
+            val accent = when (kind) {
                 HiitPhaseKind.WORK -> Color(0xFFE5534B); HiitPhaseKind.REST -> Color(0xFF2C8C63)
                 HiitPhaseKind.PREPARE -> Color(0xFFE59B42); HiitPhaseKind.DONE -> Blue
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(kind.label, color = color, fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text(if (phase != null && phase.round > 0) "第 ${phase.round}/${template.rounds} 轮" else "${template.rounds} 轮",
-                    color = Muted, style = MaterialTheme.typography.labelLarge)
+                CircleProgress(progress = if (template.rounds == 0) 0f else (phase?.round ?: 0).toFloat() / template.rounds,
+                    modifier = Modifier.size(128.dp), color = accent) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${phase?.remainingSeconds ?: 0}", style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold, color = accent)
+                        Text(kind.label, color = accent, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if ((phase?.round ?: 0) > 0) "第 ${phase!!.round}/${template.rounds} 轮" else "${template.rounds} 轮",
+                        fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text("${template.workSeconds}s 训练 / ${template.restSeconds}s 休息", color = Muted,
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = { finish(template) }) { Text("结束训练") }
+                }
             }
-            Text("${phase?.remainingSeconds ?: 0}", style = MaterialTheme.typography.displayLarge,
-                fontWeight = FontWeight.Bold, color = color)
-            LinearProgressIndicator(
-                progress = { if (phase == null || phase.round == 0) 0f else phase.round.toFloat() / template.rounds },
-                modifier = Modifier.fillMaxWidth().height(6.dp), color = color)
-            Text("${template.workSeconds}s 训练 / ${template.restSeconds}s 休息 · ${template.rounds} 轮",
-                color = Muted, style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { finishRun(template, SystemClock.elapsedRealtime() - startElapsed) },
-                modifier = Modifier.fillMaxWidth()) { Text("结束这次训练") }
-            Text("退出应用或锁屏后计时与通知仍会继续。", color = Muted, style = MaterialTheme.typography.bodySmall)
+            Text("计时在通知栏继续，可锁屏。", color = Muted, style = MaterialTheme.typography.bodySmall)
         }
-    }
-    if (runs.isNotEmpty()) {
-        // Reported separately so the panel stays focused on the timer itself.
-        RecordPanel(runs)
     }
 }
 
-@Composable private fun RecordPanel(runs: List<HiitRun>) {
+@Composable private fun OneRmCard() {
+    var kilos by rememberSaveable { mutableStateOf(100.0) }
+    var reps by rememberSaveable { mutableIntStateOf(5) }
+    val oneRm = Progression.oneRm((kilos * 1000).roundToLong().coerceAtLeast(0), reps)
+    Panel {
+        Text("1RM 估算", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Stepper("重量", kg(oneRmWeight(kilos)), "kg", Modifier.weight(1f),
+                onMinus = { kilos = (kilos - 2.5).coerceAtLeast(2.5) },
+                onPlus = { kilos = (kilos + 2.5).coerceAtMost(500.0) })
+            Stepper("次数", reps.toString(), "次", Modifier.weight(1f),
+                onMinus = { reps = (reps - 1).coerceAtLeast(1) },
+                onPlus = { reps = (reps + 1).coerceAtMost(30) })
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(kg(oneRm), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = Blue)
+            Text(" kg", color = Muted, modifier = Modifier.padding(bottom = 8.dp))
+        }
+        Text("按 $reps 次 × ${kg(oneRmWeight(kilos))} kg 估算", color = Muted,
+            style = MaterialTheme.typography.bodySmall)
+        HorizontalDivider(color = Page)
+        OneRmTable.rows(oneRm).chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { (percent, grams) ->
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Page).padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("$percent%", color = Muted, style = MaterialTheme.typography.labelSmall)
+                        Text(kg(grams), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+private fun oneRmWeight(kilos: Double): Long = (kilos * 1000).roundToLong()
+
+@Composable private fun PlateCard() {
+    var target by rememberSaveable { mutableStateOf(60.0) }
+    val loading = PlateMath.perSide(target)
+    Panel {
+        Text("杠铃片计算", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("${number(target)} kg", style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold, color = Ink)
+                Text("含 ${number(PlateMath.BAR_KG)} kg 空杆", color = Muted,
+                    style = MaterialTheme.typography.labelSmall)
+            }
+            OutlinedButton(onClick = { target = (target - 2.5).coerceAtLeast(20.0) }) { Text("−2.5") }
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = { target = (target + 2.5).coerceAtMost(400.0) }) { Text("+2.5") }
+        }
+        HorizontalDivider(color = Page)
+        if (loading.isEmpty()) {
+            Text("空杆，或重量低于空杆。", color = Muted, style = MaterialTheme.typography.bodyMedium)
+        } else {
+            Text("每侧装载", color = Muted, style = MaterialTheme.typography.labelMedium)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                loading.forEach { item ->
+                    Column(Modifier.clip(RoundedCornerShape(12.dp)).background(PaleBlue).padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${number(item.plateKg)}", fontWeight = FontWeight.Bold, color = Blue)
+                        Text("×${item.perSide}", color = Muted, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            Text(if (PlateMath.isExact(target)) "实际 ${number(PlateMath.achievable(target))} kg，正好装出。"
+                else "实际可装 ${number(PlateMath.achievable(target))} kg（与目标差 ${number(target - PlateMath.achievable(target))} kg）。",
+                color = Muted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable private fun Stepper(label: String, value: String, unit: String, modifier: Modifier = Modifier,
+    onMinus: () -> Unit, onPlus: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Page).padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = Muted, style = MaterialTheme.typography.labelSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onMinus, contentPadding = PaddingValues(4.dp)) { Text("−") }
+            Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            TextButton(onClick = onPlus, contentPadding = PaddingValues(4.dp)) { Text("+") }
+        }
+        Text(unit, color = Muted, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable private fun PerformanceCard(sessions: List<Session>) {
+    val best = sessions.filter { it.endedAt != null }.flatMap { it.movements }.groupBy { it.exerciseId }
+        .mapNotNull { (_, moves) ->
+            val sets = moves.flatMap { it.sets }.filter { it.countsVolume }
+            if (sets.isEmpty()) null else Triple(moves.first().name, sets.maxOf { it.grams },
+                sets.sumOf { it.grams * it.reps } / 1000.0)
+        }.sortedByDescending { it.third }
+    val top = best.firstOrNull()?.third ?: 1.0
+    Panel {
+        Text("动作表现", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        if (best.isEmpty()) {
+            Text("完成正式组后，这里会按动作统计容量与最大重量。", color = Muted,
+                style = MaterialTheme.typography.bodyMedium)
+            return@Panel
+        }
+        best.take(6).forEach { (name, grams, volume) ->
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(name, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("${kg(grams)} kg", color = Blue, style = MaterialTheme.typography.labelLarge)
+                }
+                ShareBar((volume / top).toFloat(), Modifier.fillMaxWidth().height(7.dp))
+                Text("${number(volume)} kg 容量", color = Muted, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+@Composable private fun HiitHistoryCard(runs: List<HiitRun>) {
     val format = remember { DateTimeFormatter.ofPattern("MM-dd HH:mm") }
     Panel {
-        Text("最近的间歇训练", fontWeight = FontWeight.SemiBold)
-        runs.sortedByDescending { it.endedAt }.take(6).forEach { r ->
+        Text("最近的间歇训练", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        runs.sortedByDescending { it.endedAt }.take(5).forEach { r ->
             val stamp = Instant.ofEpochMilli(r.startedAt).atZone(ZoneId.systemDefault()).format(format)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(r.name, style = MaterialTheme.typography.bodyMedium)
-                    Text("$stamp · ${r.workSeconds}s/${r.restSeconds}s · 完成 ${r.completedRounds}/${r.rounds} 轮",
-                        color = Muted, style = MaterialTheme.typography.labelSmall)
+                    Text("$stamp · 完成 ${r.completedRounds}/${r.rounds} 轮", color = Muted,
+                        style = MaterialTheme.typography.labelSmall)
                 }
                 Text("${(r.endedAt - r.startedAt) / 60000} min", color = Blue,
                     style = MaterialTheme.typography.labelLarge)
@@ -202,4 +392,3 @@ private val hiitPresets = listOf(
         }
     }
 }
-

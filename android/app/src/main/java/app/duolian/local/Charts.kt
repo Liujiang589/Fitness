@@ -123,3 +123,24 @@ private val AccentFallback = Color(0xFFE8EEF7)
             .clip(RoundedCornerShape(6.dp)).background(color))
     }
 }
+
+/** Ring progress used by the rest and interval timers. */
+@Composable internal fun CircleProgress(progress: Float, modifier: Modifier = Modifier, color: Color = Blue,
+    track: Color = AccentFallback, strokeWidth: androidx.compose.ui.unit.Dp = 12.dp,
+    content: @Composable () -> Unit) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = strokeWidth.toPx()
+            val inset = stroke / 2
+            val arcSize = Size(size.width - stroke, size.height - stroke)
+            drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize,
+                style = Stroke(stroke, cap = StrokeCap.Round))
+            val sweep = 360f * progress.coerceIn(0f, 1f)
+            if (sweep > 0f) {
+                drawArc(color, -90f, sweep, false, Offset(inset, inset), arcSize,
+                    style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+        }
+        content()
+    }
+}
