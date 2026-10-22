@@ -14,6 +14,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val owner = app as DuolianApp
@@ -26,12 +29,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val water = repo.water.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val rest = owner.restSeconds.stateIn(viewModelScope, SharingStarted.Eagerly, 60)
     val hiitRuns = MutableStateFlow<List<HiitRun>>(emptyList())
+    val autoBackupAt = MutableStateFlow<Long?>(null)
     val ready = MutableStateFlow(false)
     val busy = MutableStateFlow(false)
     val message = MutableStateFlow<String?>(null)
     val pendingImport = MutableStateFlow<Backup?>(null)
     private val operationLock = Mutex()
-    init { act { repo.initialize(); hiitRuns.value = repo.hiitRuns(); ready.value = true } }
+    init { act { repo.initialize(); hiitRuns.value = repo.hiitRuns(); ready.value = true; autoBackup() } }
     fun act(job: suspend () -> Unit) {
         viewModelScope.launch {
             operationLock.withLock {
@@ -85,11 +89,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun export(uri: Uri) = act {
         val json = Codec.encodeToString(repo.snapshot(rest.value))
-        require(json.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) { "数据超过4MiB，本版备份大小上限需先扩展" }
+        require(json.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) { "数据超过 8 MiB，请先清理部分历史记录" }
         withContext(Dispatchers.IO) {
             val stream = owner.contentResolver.openOutputStream(uri, "wt") ?: error("无法写入此位置")
             stream.bufferedWriter(Charsets.UTF_8).use { it.write(json) }
-        }; message.value = "备份已导出"
+        }; message.value = "备份已导出（格式 duolian-native v2）"
     }
     fun inspectImport(uri: Uri) = act {
         val text = withContext(Dispatchers.IO) {
@@ -100,12 +104,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 while (true) {
                     val n = input.read(buffer)
                     if (n < 0) break
-                    require(result.size() + n <= MAX_BACKUP_BYTES) { "备份不能超过4MiB" }
+                    require(result.size() + n <= MAX_BACKUP_BYTES) { "备份不能超过 8 MiB" }
                     result.write(buffer, 0, n)
                 }
                 result.toByteArray()
             }
-            require(bytes.size <= MAX_BACKUP_BYTES) { "备份不能超过4MiB" }
+            require(bytes.size <= MAX_BACKUP_BYTES) { "备份不能超过 8 MiB" }
             bytes.toString(Charsets.UTF_8)
         }
         val b = Codec.decodeFromString<Backup>(text); Rules.backup(b); pendingImport.value = b
@@ -121,6 +125,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             catch (e: Exception) { file.failWrite(stream); throw e }
         }
         repo.restore(b)
+        hiitRuns.value = repo.hiitRuns()
         pendingImport.value = null
         try { owner.setRest(b.restSeconds); message.value = "导入完成，替换前备份已保留" }
         catch (e: Exception) { message.value = "训练数据已导入；休息偏好更新失败，可在我的中重新设置" }
@@ -133,5 +138,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             out.use { dest -> file.inputStream().use { it.copyTo(dest) } }
         }; message.value = "导入前备份已导出"
     }
-    companion object { const val MAX_BACKUP_BYTES = 4 * 1024 * 1024 }
+    fun exportAutoBackup(uri: Uri) = act {
+        withContext(Dispatchers.IO) {
+            val file = File(owner.filesDir, AUTO_BACKUP)
+            require(file.exists()) { "尚无自动备份" }
+            val out = owner.contentResolver.openOutputStream(uri, "wt") ?: error("无法写入文件")
+            out.use { dest -> file.inputStream().use { it.copyTo(dest) } }
+        }; message.value = "自动备份已导出"
+    }
+
+    /** Writes at most one automatic snapshot per day and keeps yesterday's copy as a fallback. */
+    private suspend fun autoBackup() {
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val target = File(owner.filesDir, AUTO_BACKUP)
+                val today = LocalDate.now()
+                if (target.exists()) {
+                    val written = Instant.ofEpochMilli(target.lastModified()).atZone(ZoneId.systemDefault()).toLocalDate()
+                    autoBackupAt.value = target.lastModified()
+                    if (!written.isBefore(today)) return@withContext
+                    target.copyTo(File(owner.filesDir, "$AUTO_BACKUP.1"), overwrite = true)
+                }
+                val json = Codec.encodeToString(repo.snapshot(rest.value))
+                if (json.toByteArray(Charsets.UTF_8).size > MAX_BACKUP_BYTES) return@withContext
+                target.writeText(json, Charsets.UTF_8)
+                autoBackupAt.value = target.lastModified()
+            }
+        }
+    }
+    companion object {
+        const val MAX_BACKUP_BYTES = 8 * 1024 * 1024
+        private const val AUTO_BACKUP = "auto-backup.json"
+    }
 }

@@ -135,8 +135,10 @@ internal class ScreenActions(
 
 @Composable internal fun ExercisePage(exercises: List<Exercise>, a: ScreenActions) {
     var query by rememberSaveable{mutableStateOf("")};var muscle by rememberSaveable{mutableStateOf("全部")};var equipment by rememberSaveable{mutableStateOf("全部")}
+    var favoritesOnly by rememberSaveable{mutableStateOf(false)}
     val muscles=listOf("全部")+exercises.map{it.muscle}.distinct()
-    val filtered=exercises.filter{(query.isBlank()||it.name.contains(query,true))&&(muscle=="全部"||it.muscle==muscle)&&(equipment=="全部"||it.equipment==equipment)}
+    val filtered=exercises.filter{(query.isBlank()||it.name.contains(query,true))&&(muscle=="全部"||it.muscle==muscle)&&(equipment=="全部"||it.equipment==equipment)&&(!favoritesOnly||it.favorite)}
+        .sortedWith(compareByDescending<Exercise>{it.favorite}.thenBy{it.name})
     Column(Modifier.fillMaxSize()){
         Row(Modifier.padding(horizontal=18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
             OutlinedTextField(query,{query=it},placeholder={Text("搜索动作名称",color=Muted)},singleLine=true,modifier=Modifier.weight(1f),shape=RoundedCornerShape(18.dp),colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=Color.Transparent,focusedBorderColor=Blue,unfocusedContainerColor=Color.White))
@@ -149,14 +151,16 @@ internal class ScreenActions(
             }
             Column(Modifier.weight(1f).padding(start=10.dp,end=18.dp)){
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(7.dp)){
+                    FilterChip(selected=favoritesOnly,onClick={favoritesOnly=!favoritesOnly},label={Text("★ 收藏")},shape=RoundedCornerShape(11.dp))
                     (listOf("全部")+exercises.map{it.equipment}.distinct()).forEach{e->FilterChip(selected=equipment==e,onClick={equipment=e},label={Text(e)},shape=RoundedCornerShape(11.dp))}
                 }
                 Row(Modifier.padding(vertical=10.dp),verticalAlignment=Alignment.CenterVertically){Text(if(muscle=="全部")"全部动作" else muscle,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));Text("${filtered.size} 项",color=Muted,style=MaterialTheme.typography.labelMedium)}
                 LazyVerticalGrid(columns=GridCells.Fixed(2),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=20.dp),modifier=Modifier.weight(1f)){
                     gridItems(filtered,key={it.id}){e->Surface(onClick={a.detail(e)},color=Color.White,shape=RoundedCornerShape(19.dp)){
                         Column(Modifier.padding(10.dp),horizontalAlignment=Alignment.CenterHorizontally){
-                            ExerciseArt(e.muscle,Modifier.fillMaxWidth().height(94.dp))
-                            Text(e.name,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.heightIn(min=42.dp))
+                            if(e.mediaUri!=null)ExercisePhoto(e.mediaUri!!,Modifier.fillMaxWidth().height(94.dp).clip(RoundedCornerShape(12.dp)))
+                            else ExerciseArt(e.muscle,Modifier.fillMaxWidth().height(94.dp))
+                            Text((if(e.favorite)"★ " else "")+e.name,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.bodyMedium,maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.heightIn(min=42.dp))
                             Text(e.equipment,color=Muted,style=MaterialTheme.typography.labelSmall)
                         }
                     }}

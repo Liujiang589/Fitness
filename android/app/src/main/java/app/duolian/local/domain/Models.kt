@@ -10,7 +10,8 @@ val Codec = Json { encodeDefaults = true; ignoreUnknownKeys = false }
 
 @Serializable data class Exercise(
     val id: String = newId(), val name: String, val muscle: String,
-    val equipment: String, val defaultGrams: Long = 0, val notes: String = ""
+    val equipment: String, val defaultGrams: Long = 0, val notes: String = "",
+    val favorite: Boolean = false, val mediaUri: String? = null
 )
 @Serializable data class Plan(
     val id: String = newId(), val name: String, val exerciseIds: List<String>,
@@ -53,13 +54,15 @@ val Codec = Json { encodeDefaults = true; ignoreUnknownKeys = false }
 @Serializable data class Backup(
     val format: String = "duolian-native", val version: Int = 2,
     val exercises: List<Exercise>, val plans: List<Plan>, val sessions: List<Session>,
-    val body: List<Body>, val food: List<Food>, val water: List<Water>, val restSeconds: Int = 60
+    val body: List<Body>, val food: List<Food>, val water: List<Water>, val restSeconds: Int = 60,
+    val hiitRuns: List<HiitRun> = emptyList()
 )
 
 object Rules {
     fun exercise(x: Exercise) {
         id(x.id); label(x.name); label(x.muscle); label(x.equipment)
         require(x.defaultGrams in 0..1_000_000 && x.notes.length <= 2000) { "动作数值或说明超限" }
+        require(x.mediaUri == null || x.mediaUri.length <= 2000) { "图片地址过长" }
     }
     fun plan(x: Plan, exercises: List<Exercise>) {
         id(x.id); label(x.name)
@@ -182,6 +185,7 @@ object Rules {
         unique(b.body.map { it.id }, 20000); b.body.forEach(::body)
         unique(b.food.map { it.id }, 20000); b.food.forEach(::food)
         unique(b.water.map { it.id }, 20000); b.water.forEach(::water)
+        unique(b.hiitRuns.map { it.id }, 5000); b.hiitRuns.forEach(::hiitRun)
     }
     fun parseKg(text: String): Long {
         val kg = text.toBigDecimalOrNull() ?: error("请输入有效重量")

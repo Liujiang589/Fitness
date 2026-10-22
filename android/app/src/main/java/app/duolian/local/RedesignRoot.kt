@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -43,6 +44,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
     val busy by vm.busy.collectAsStateWithLifecycle();val message by vm.message.collectAsStateWithLifecycle()
     val pending by vm.pendingImport.collectAsStateWithLifecycle()
     val hiitRuns by vm.hiitRuns.collectAsStateWithLifecycle()
+    val autoBackupAt by vm.autoBackupAt.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
@@ -62,6 +64,14 @@ private data class Confirmation(val title:String,val action:()->Unit)
     val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(vm::export)}
     val recovery=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(vm::exportRecovery)}
     val import=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::inspectImport)}
+    val auto=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(vm::exportAutoBackup)}
+    val photoPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
+        val current=detail
+        if(uri!=null&&current!=null){
+            runCatching{context.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)}
+            val updated=current.copy(mediaUri=uri.toString());detail=updated;vm.act{vm.repo.saveExercise(updated)}
+        }
+    }
     val a=ScreenActions(
         plan={editPlan=it;planForm=true},exercise={editExercise=it;exerciseForm=true},detail={detail=it},
         auxiliary={auxiliary=it;editFood=null;editBody=null},body={editBody=it;auxiliary="body"},
@@ -92,15 +102,23 @@ private data class Confirmation(val title:String,val action:()->Unit)
             1->ToolsPage(sessions,vm,hiitRuns)
             2->ExercisePage(exercises,a)
             3->HistoryPage(sessions,exercises,plans,body,food,vm,a)
-            else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("Duolian-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("Duolian-before-import.json")})
+            else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("Duolian-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("Duolian-before-import.json")},{auto.launch("Duolian-auto-${LocalDate.now()}.json")},autoBackupAt)
         }
     }}
     if(exerciseForm)ExerciseForm(editExercise,{exerciseForm=false}){x->vm.act{vm.repo.saveExercise(x)}}
     if(planForm)PlanForm(editPlan,exercises,{planForm=false}){x->vm.act{vm.repo.savePlan(x)}}
     detail?.let{e->AlertDialog(onDismissRequest={detail=null},title={Text(e.name)},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
-        ExerciseArt(e.muscle,Modifier.fillMaxWidth().height(140.dp));Text("${e.muscle} · ${e.equipment}",color=Blue)
-        Text(e.notes.ifBlank{"可编辑补充你的动作要点。"});Text("分类示意图；本版尚无动作演示视频。",color=Muted,style=MaterialTheme.typography.bodySmall)
+        if(e.mediaUri!=null)ExercisePhoto(e.mediaUri!!,Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(14.dp)))
+        else ExerciseArt(e.muscle,Modifier.fillMaxWidth().height(140.dp))
+        Text("${e.muscle} · ${e.equipment}"+(if(e.favorite)" · 已收藏" else ""),color=Blue)
+        Text(e.notes.ifBlank{"可编辑补充你的动作要点。"})
+        Text(if(e.mediaUri==null)"分类示意图；可添加自己的动作照片，也可以继续不配图。" else "已使用你选择的照片；图片保存在本机。",color=Muted,style=MaterialTheme.typography.bodySmall)
         Text("默认重量 ${kg(e.defaultGrams)} kg",fontWeight=FontWeight.SemiBold)
+        Row{
+            TextButton(onClick={photoPicker.launch(arrayOf("image/*"))}){Text(if(e.mediaUri==null)"添加图片" else "更换图片")}
+            if(e.mediaUri!=null)TextButton(onClick={val updated=e.copy(mediaUri=null);detail=updated;vm.act{vm.repo.saveExercise(updated)}}){Text("移除图片",color=Muted)}
+            TextButton(onClick={val updated=e.copy(favorite=!e.favorite);detail=updated;vm.act{vm.repo.saveExercise(updated)}}){Text(if(e.favorite)"取消收藏" else "收藏")}
+        }
         TextButton(onClick={detail=null;ask("删除「${e.name}」？计划引用的动作需先从计划移除。"){vm.act{vm.repo.deleteExercise(e.id)}}}){Text("删除动作",color=MaterialTheme.colorScheme.error)}
     }},confirmButton={TextButton(onClick={detail=null;a.exercise(e)}){Text("编辑动作")}},dismissButton={TextButton(onClick={detail=null}){Text("关闭")}})}
     confirm?.let{c->AlertDialog(onDismissRequest={confirm=null},title={Text(c.title)},confirmButton={TextButton(enabled=!busy,onClick={c.action();confirm=null}){Text("确认")}},dismissButton={TextButton(onClick={confirm=null}){Text("取消")}})}
@@ -114,16 +132,22 @@ private data class Confirmation(val title:String,val action:()->Unit)
     }
 }
 
-@Composable private fun ProfilePage(body:List<Body>,sessions:List<Session>,rest:Int,busy:Boolean,vm:MainViewModel,a:ScreenActions,export:()->Unit,import:()->Unit,recovery:()->Unit){
+@Composable private fun ProfilePage(body:List<Body>,sessions:List<Session>,rest:Int,busy:Boolean,vm:MainViewModel,a:ScreenActions,export:()->Unit,import:()->Unit,recovery:()->Unit,autoBackup:()->Unit,autoBackupAt:Long?){
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(15.dp)){
         item{Panel{Row{Stat(sessions.count{it.endedAt!=null}.toString(),"累计训练",Modifier.weight(1f));Stat(body.firstOrNull()?.let{kg(it.grams)}?:"—","最近体重 kg",Modifier.weight(1f))}}}
         item{Section("身体记录","＋ 记录",{a.body(null)})}
         if(body.isEmpty())item{EmptyPanel("从今天开始记录变化","记录体重和体脂率，数据保存在这台手机。")}
         items(body,key={it.id}){b->Panel{Row{Column(Modifier.weight(1f)){Text("${kg(b.grams)} kg",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text("${b.date}  ${b.fatPercent?.let{"体脂 ${number(it)}%"}?:""}",color=Muted,style=MaterialTheme.typography.bodySmall)};TextButton(onClick={a.body(b)}){Text("编辑")};TextButton(onClick={a.ask("删除此身体记录？"){vm.act{vm.repo.deleteBody(b.id)}}}){Text("删除",color=Muted)}}}}
         item{Section("训练设置")}
-        item{Panel{Row{Column(Modifier.weight(1f)){Text("默认组间休息",fontWeight=FontWeight.SemiBold);Text("${rest} 秒",color=Muted)};TextButton(onClick={a.auxiliary("rest")}){Text("修改")}};Text("当前支持前台休息提示。",style=MaterialTheme.typography.bodySmall,color=Muted)}}
+        item{Panel{Row{Column(Modifier.weight(1f)){Text("默认组间休息",fontWeight=FontWeight.SemiBold);Text("${rest} 秒",color=Muted)};TextButton(onClick={a.auxiliary("rest")}){Text("修改")}};Text("组间休息与 HIIT 计时会显示通知，锁屏或切到后台也能看到。",style=MaterialTheme.typography.bodySmall,color=Muted)}}
         item{Section("数据与备份")}
-        item{Panel{Button(onClick=export,enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("导出全部数据")};OutlinedButton(onClick=import,enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("导入备份")};TextButton(onClick=recovery){Text("导出最近一次导入前备份")};Text("导入前自动保留恢复快照。",style=MaterialTheme.typography.bodySmall,color=Muted)}}
-        item{Text("独练 0.3 开发版 · 本地训练手记",Modifier.padding(vertical=10.dp),style=MaterialTheme.typography.labelSmall,color=Muted)}
+        item{Panel{
+            Button(onClick=export,enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("导出全部数据")}
+            OutlinedButton(onClick=import,enabled=!busy,modifier=Modifier.fillMaxWidth()){Text("导入备份（v1 / v2）")}
+            Row{TextButton(onClick=recovery){Text("导入前备份")};TextButton(onClick=autoBackup){Text("自动备份")}}
+            Text(if(autoBackupAt==null)"每日首次打开应用时自动备份一次（最多 8 MiB）。" else "每日自动备份：上次 ${stamp(autoBackupAt)}。",style=MaterialTheme.typography.bodySmall,color=Muted)
+            Text("导入前会自动保留恢复快照；备份格式 duolian-native v2。",style=MaterialTheme.typography.bodySmall,color=Muted)
+        }}
+        item{Text("独练 0.4 开发版 · 本地训练手记",Modifier.padding(vertical=10.dp),style=MaterialTheme.typography.labelSmall,color=Muted)}
     }
 }

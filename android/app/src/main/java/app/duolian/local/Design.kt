@@ -1,12 +1,14 @@
 package app.duolian.local
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -14,7 +16,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.Instant
@@ -73,6 +77,30 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
             3 -> { line(.18f,.8f,.88f,.8f);line(.28f,.65f,.28f,.42f);line(.5f,.65f,.5f,.2f);line(.72f,.65f,.72f,.34f) }
             4 -> { drawCircle(color,w*.15f,Offset(w*.5f,h*.3f),style=Stroke(s));drawArc(color,180f,180f,false,Offset(w*.2f,h*.56f),Size(w*.6f,h*.5f),style=Stroke(s)) }
             else -> {line(.5f,.2f,.5f,.8f);line(.2f,.5f,.8f,.5f)}
+        }
+    }
+}
+
+/** User-picked exercise photo; decoded at half size to keep memory bounded. */
+@Composable internal fun ExercisePhoto(uri: String, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val image by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { input ->
+                    val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+                    android.graphics.BitmapFactory.decodeStream(input, null, options)
+                        ?.asImageBitmap()
+                }
+            }.getOrNull()
+        }
+    }
+    val bitmap = image
+    if (bitmap != null) {
+        Image(bitmap, contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop)
+    } else {
+        Box(modifier.background(Page, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+            Text("图片不可用", color = Muted, style = MaterialTheme.typography.labelSmall)
         }
     }
 }

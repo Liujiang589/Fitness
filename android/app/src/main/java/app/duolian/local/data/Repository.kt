@@ -128,7 +128,8 @@ class Repository(private val db: LocalDatabase) {
         sessions = dao.allSessions().map { Codec.decodeFromString<Session>(it.payload) },
         body = dao.allBody().map { Codec.decodeFromString<Body>(it.payload) },
         food = dao.allFood().map { Codec.decodeFromString<Food>(it.payload) },
-        water = dao.allWater().map { Codec.decodeFromString<Water>(it.payload) }, restSeconds = rest
+        water = dao.allWater().map { Codec.decodeFromString<Water>(it.payload) }, restSeconds = rest,
+        hiitRuns = hiitRuns()
     ) }
     suspend fun restore(b: Backup) {
         Rules.backup(b) // Complete validation BEFORE mutating anything.
@@ -141,6 +142,7 @@ class Repository(private val db: LocalDatabase) {
             b.food.forEach { dao.put(FoodRow(it.id, Codec.encodeToString(it))) }
             b.water.forEach { dao.put(WaterRow(it.id, Codec.encodeToString(it))) }
             dao.put(MetaRow("initialized", "1"))
+            dao.put(MetaRow(KEY_HIIT_RUNS, Codec.encodeToString(b.hiitRuns.takeLast(MAX_HIIT_RUNS))))
         }
     }
     private companion object {

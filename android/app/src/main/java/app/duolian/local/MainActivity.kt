@@ -51,7 +51,10 @@ import java.util.Locale
     FieldsDialog(if (e == null) "新增动作" else "编辑动作", listOf("名称" to (e?.name ?: ""),
         "肌群" to (e?.muscle ?: "胸部"), "器械" to (e?.equipment ?: "徒手"),
         "默认重量 kg" to kg(e?.defaultGrams ?: 0), "动作说明" to (e?.notes ?: "")), dismiss) { v ->
-        val x = Exercise(e?.id ?: newId(), v[0].trim(), v[1].trim(), v[2].trim(), Rules.parseKg(v[3]), v[4])
+        // Keep favourite state and any attached photo when only the text fields change.
+        val x = e?.copy(name = v[0].trim(), muscle = v[1].trim(), equipment = v[2].trim(),
+            defaultGrams = Rules.parseKg(v[3]), notes = v[4])
+            ?: Exercise(newId(), v[0].trim(), v[1].trim(), v[2].trim(), Rules.parseKg(v[3]), v[4])
         Rules.exercise(x); save(x)
     }
 }
