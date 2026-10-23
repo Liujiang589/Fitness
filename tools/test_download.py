@@ -8,6 +8,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from pathlib import Path
 from serve_download import ROOT, make_server, qr_png, valid_bind
 
@@ -146,6 +147,26 @@ class DownloadTest(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as context:
                 self.request("/latest.apk")
             self.assertEqual(503, context.exception.code)
+        finally:
+            build.write_bytes(original)
+
+    def test_chinese_filename_round_trips_in_manifest_headers_and_range(self):
+        build = self.root / "android/app/build.gradle.kts"
+        original = build.read_bytes()
+        try:
+            # A legacy alias must not override the canonical Chinese release.
+            (self.root / "Duolian-V1.9.apk").write_bytes(b"old-alias")
+            (self.root / "独练-V1.9.apk").write_bytes(self.apk)
+            build.write_text('versionName = "1.9"\nversionCode = 23\n')
+            with self.request("/latest.json") as response:
+                manifest = json.load(response)
+                self.assertEqual("独练-V1.9.apk", manifest["filename"])
+                self.assertEqual(hashlib.sha256(self.apk).hexdigest(), manifest["sha256"])
+            with self.request("/latest.apk", headers={"Range": "bytes=0-31"}) as response:
+                self.assertEqual(206, response.status)
+                self.assertEqual(self.apk[:32], response.read())
+                self.assertIn("filename*=UTF-8''" + quote("独练-V1.9.apk"), response.headers["Content-Disposition"])
+                self.assertIn('filename="Dulian-V1.9.apk"', response.headers["Content-Disposition"])
         finally:
             build.write_bytes(original)
 

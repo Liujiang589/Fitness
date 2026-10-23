@@ -90,17 +90,43 @@ internal class ScreenActions(
 
 @Composable internal fun TrainingPage(vm: MainViewModel, exercises: List<Exercise>, plans: List<Plan>,
     sessions: List<Session>, food: List<Food>, water: List<Water>, busy: Boolean, a: ScreenActions) {
-    val active = sessions.firstOrNull { it.endedAt == null }; val history = sessions.filter { it.endedAt != null }
+    val active = remember(sessions) { sessions.firstOrNull { it.endedAt == null } }
+    val history = remember(sessions) { sessions.filter { it.endedAt != null } }
     val alerts = remember(sessions, exercises) { Diagnostics.alerts(sessions, exercises) }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
+    var section by rememberSaveable { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+    val today = rememberTrainingDate()
+    val focus = remember(plans, sessions, today) { TrainingHome.focus(plans, sessions, today) }
+    LaunchedEffect(section, active?.id) { listState.scrollToItem(0) }
+    LazyColumn(Modifier.fillMaxSize(), state = listState,
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (active != null) item { ActiveTraining(active, vm, sessions, exercises, busy, a.ask) }
-        else {
-            item { TrainingSpotlight(plans, busy, vm) { a.plan(null) } }
-            item { WeeklyMomentum(history) }
-        }
-        if (active == null) {
-        if (alerts.isNotEmpty()) item { DiagnosticsBanner(alerts) }
+        if (active != null) {
+            item { ActiveTraining(active, vm, sessions, exercises, busy, a.ask, a.detail) }
+        } else {
+            item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilterChip(selected = section == 0, onClick = { section = 0 }, label = { Text("今天") })
+                FilterChip(selected = section == 1, onClick = { section = 1 }, label = { Text("计划库") })
+            } }
+            if (section == 0) {
+                item { TrainingSpotlight(focus, busy) {
+                    when {
+                        focus.plan != null -> vm.act { vm.repo.start(focus.plan.id) }
+                        focus.mode == HomeMode.FIRST_PLAN -> a.plan(null)
+                        else -> section = 1
+                    }
+                } }
+                item { OutdoorEntry({ a.auxiliary("outdoor") }) }
+                val learningExercise = focus.plan?.exerciseIds?.mapNotNull { id -> exercises.find { it.id == id } }
+                    ?.firstOrNull { ExerciseGuides.find(it) != null }
+                    ?: exercises.firstOrNull { ExerciseGuides.find(it)?.kind == MotionKind.BODY_SQUAT }
+                    ?: exercises.firstOrNull { ExerciseGuides.find(it) != null }
+                learningExercise?.let { e -> item { MovementDiscovery(e) { a.detail(e) } } }
+                item { WeeklyMomentum(history) }
+                item(key = "weekly-review", contentType = "weekly-review") { WeeklyReviewCard(sessions, food) }
+                item { HomeLifeLinks(a.nutrition) { a.body(null) } }
+                if (alerts.isNotEmpty()) item { Panel { DetailDisclosure("训练观察与提示") { DiagnosticsBanner(alerts) } } }
+            } else {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("训练计划", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
@@ -150,6 +176,7 @@ internal class ScreenActions(
                                 ExerciseArt(e.muscle, Modifier.size(38.dp))
                                 Text(e.name, Modifier.weight(1f).padding(start = 10.dp),
                                     style = MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick = { a.detail(e) }) { Text("看要领") }
                             }
                         }
                     }
@@ -161,7 +188,7 @@ internal class ScreenActions(
         }
         item { TemplateLibrary(vm) }
         if (plans.any { it.weekdays.isNotEmpty() }) item { ScheduleCard(plans, active, busy, vm) }
-        item { NutritionSummary(food, water, LocalDate.now().toString(), a) }
+            }
         }
     }
 }
@@ -172,11 +199,11 @@ internal class ScreenActions(
     var equipment by rememberSaveable { mutableStateOf("全部") }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var autoplay by rememberSaveable { mutableStateOf(true) }
-    val filtered = exercises.filter {
+    val filtered = remember(exercises, query, muscle, equipment, favoritesOnly) { exercises.filter {
         (query.isBlank() || it.name.contains(query, true) || it.muscle.contains(query, true) || it.equipment.contains(query, true)) &&
             (muscle == "全部" || it.muscle == muscle) && (equipment == "全部" || it.equipment == equipment) &&
             (!favoritesOnly || it.favorite)
-    }.sortedWith(compareByDescending<Exercise> { it.favorite }.thenBy { it.name })
+    }.sortedWith(compareByDescending<Exercise> { it.favorite }.thenBy { it.name }) }
     val listState=rememberLazyListState()
     val ids=remember(filtered){filtered.map{it.id}.toSet()}
     val playingId by remember(listState,ids) { derivedStateOf {
@@ -217,9 +244,9 @@ internal class ScreenActions(
             contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=24.dp),
             verticalArrangement=Arrangement.spacedBy(16.dp)) {
             if (filtered.isEmpty()) item { EmptyPanel("没有匹配的动作", "试试其他关键词，或切换肌群和器械筛选。") }
-            items(filtered,key={it.id}) { exercise ->
+            items(filtered,key={it.id},contentType={"exercise-card"}) { exercise ->
                 val guide=remember(exercise.name,exercise.equipment){ExerciseGuides.find(exercise)}
-                val playing=autoplay&&playingId==exercise.id
+                val playing=autoplay&&!listState.isScrollInProgress&&playingId==exercise.id
                 Surface(onClick={a.detail(exercise)},color=Color.White,shape=RoundedCornerShape(24.dp),
                     border=BorderStroke(1.dp,Hairline)) {
                     Column {

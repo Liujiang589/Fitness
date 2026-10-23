@@ -27,7 +27,7 @@ import kotlinx.coroutines.delay
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) { if (copied) { delay(2500); copied = false } }
     Panel(color = Night) {
-        Eyebrow("BEHIND DUOLIAN", Volt)
+        Eyebrow("独练 / 关于作者", Volt)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).background(Volt, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
                 Text("LJ", color = Night, fontWeight = FontWeight.Bold, fontSize = 19.sp)

@@ -71,7 +71,7 @@ internal class AppUpdateViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) {
                 mutable.update { it.copy(checking = false,
-                    error = if (it.manual) "暂时无法检查更新。请确认手机和电脑连接同一 Wi-Fi，且电脑的下载服务正在运行。" else null) }
+                    error = if (it.manual) "暂时无法检查更新，请检查网络后重试，也可从官方下载页获取新版。" else null) }
             }
         }
     }

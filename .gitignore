@@ -12,3 +12,12 @@ tools/__pycache__/
 /Duolian-V1.3.apk
 /Duolian-V1.4.apk
 /独练-*-安装包.zip
+/android/amap.local.properties
+/Duolian-V1.6.apk
+/Duolian-V1.7.apk
+/Duolian-V1.8.apk
+/独练-V1.9.apk
+/独练-V1.10.apk
+/独练-V1.11.apk
+# 独立的下载站仓库，不嵌入主仓库
+/public-download-site/

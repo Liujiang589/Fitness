@@ -19,7 +19,7 @@
 
 `tools/Start-Download.ps1`启动服务。`tools/update-notes.json`按版本保存更新说明，服务将其与最新APK的版本、内部编号、大小、SHA-256、下载URL、包名和minSdk合并到`/latest.json`。说明变化无需重启；本次服务代码升级需要重启一次。
 
-发布新版时，递增`versionName`和`versionCode`，沿用同一签名，填写更新说明并构建。验证成功后，将APK发布到根目录对应`Duolian-V版本.apk`，客户端才会发现新版本。没有发布APK时服务返回503，不回退提供旧包。
+发布新版时，递增`versionName`和`versionCode`，沿用同一签名，填写更新说明并构建。验证成功后，将APK发布到根目录对应`独练-V版本.apk`，客户端才会发现新版本。没有发布APK时服务返回503，不回退提供旧包。
 
 以后迁移公网更新，需要准备固定HTTPS入口，并在`android/app/build.gradle.kts`的`UPDATE_MANIFEST_URL`中改为该地址，重新构建并覆盖安装。现有已安装的局域网版不会自动知道一个从未配置过的公网地址；迁移版需通过仍可用的旧局域网入口或手动发送APK交付。
 

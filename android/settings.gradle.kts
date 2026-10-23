@@ -21,5 +21,5 @@ dependencyResolutionManagement {
         } else { google(); mavenCentral() }
     }
 }
-rootProject.name = "Duolian"
+rootProject.name = "独练"
 include(":app")

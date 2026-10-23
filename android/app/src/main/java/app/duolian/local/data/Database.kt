@@ -15,6 +15,10 @@ data class SessionRow(@PrimaryKey val id: String, val activeSlot: Int?, val payl
 @Entity(tableName = "metadata") data class MetaRow(@PrimaryKey val key: String, val value: String)
 
 @Dao interface LocalDao {
+    @Query("SELECT * FROM metadata WHERE `key` LIKE 'outdoor:%'") fun outdoorRows(): Flow<List<MetaRow>>
+    @Query("SELECT * FROM metadata WHERE `key` LIKE 'outdoor:%'") suspend fun allOutdoorRows(): List<MetaRow>
+    @Query("DELETE FROM metadata WHERE `key` LIKE 'outdoor:%'") suspend fun clearOutdoorRows()
+    @Query("DELETE FROM metadata WHERE `key` = :key") suspend fun deleteMetadata(key: String)
     @Query("SELECT * FROM exercises ORDER BY rowid") fun exercises(): Flow<List<ExerciseRow>>
     @Query("SELECT * FROM plans ORDER BY rowid") fun plans(): Flow<List<PlanRow>>
     @Query("SELECT * FROM sessions ORDER BY rowid DESC") fun sessions(): Flow<List<SessionRow>>

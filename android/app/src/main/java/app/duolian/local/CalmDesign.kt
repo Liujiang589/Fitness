@@ -42,9 +42,7 @@ import androidx.compose.ui.unit.dp
 @Composable internal fun LifestyleBanner(@DrawableRes image: Int, title: String, subtitle: String) {
     Surface(shape = RoundedCornerShape(24.dp), color = Color(0xFFF0EFE6)) {
         Box(Modifier.fillMaxWidth().heightIn(min = 176.dp)) {
-            Image(painterResource(image), contentDescription = null,
-                modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop,
-                alignment = Alignment.CenterEnd)
+            CachedPhoto(image, Modifier.matchParentSize())
             Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(
                 Color(0xFFF5F3E9), Color(0xFFF5F3E9).copy(alpha = .9f), Color.Transparent))))
             Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(.55f).padding(18.dp),

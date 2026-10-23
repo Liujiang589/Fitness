@@ -1,0 +1,3 @@
+# Copy to amap.local.properties (ignored by Git).
+# Bind an Android SDK key to app.duolian.local and the APK certificate SHA-1.
+AMAP_ANDROID_KEY=

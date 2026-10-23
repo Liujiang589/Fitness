@@ -14,17 +14,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.duolian.local.domain.*
 import kotlinx.coroutines.delay
 
-@Composable internal fun ActiveTraining(s:Session,vm:MainViewModel,sessions:List<Session>,exercises:List<Exercise>,busy:Boolean,ask:(String,()->Unit)->Unit){
-    var now by remember{mutableLongStateOf(System.currentTimeMillis())}
+@Composable internal fun ActiveTraining(s:Session,vm:MainViewModel,sessions:List<Session>,exercises:List<Exercise>,busy:Boolean,ask:(String,()->Unit)->Unit,showGuide:(Exercise)->Unit){
     var edit by remember{mutableStateOf<Pair<String,TrainingSet>?>(null)}
     val next = remember(s.movements) { TrainingAssist.next(s) }
     val owner=LocalLifecycleOwner.current
-    LaunchedEffect(s.id){while(true){now=System.currentTimeMillis();delay(250)}}
     LaunchedEffect(s.restDeadline,s.pausedAt){val deadline=s.restDeadline
         if(s.pausedAt==null&&deadline!=null&&deadline>System.currentTimeMillis()){
             delay((deadline-System.currentTimeMillis()).coerceAtLeast(0))
@@ -35,6 +34,51 @@ import kotlinx.coroutines.delay
         }
     }
     Column(verticalArrangement=Arrangement.spacedBy(14.dp)){
+        ActiveTrainingHeader(s, vm, busy, next)
+        next?.movement?.let { movement -> exercises.find { it.id == movement.exerciseId && it.name == movement.name } }
+            ?.let { e -> MovementDiscovery(e) { showGuide(e) } }
+        s.movements.forEach{m->Panel{
+            val previous = remember(s.id, m.exerciseId, sessions) { TrainingAssist.previous(s, m.exerciseId, sessions) }
+            Text(previous?.let { "上次 ${stamp(it.session.startedAt)}" } ?: "首次记录，按实际表现填写",
+                color=Muted,style=MaterialTheme.typography.labelSmall)
+            Row(verticalAlignment=Alignment.CenterVertically){
+                ExerciseArt(exercises.find { it.id == m.exerciseId }?.muscle ?: "全身", Modifier.size(44.dp))
+                Text(m.name,Modifier.padding(start=10.dp).weight(1f,fill=false),fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+                m.supersetGroup?.let{g->Surface(color=PaleBlue,shape=RoundedCornerShape(8.dp),modifier=Modifier.padding(start=8.dp)){
+                    Text("超级组 ${('A'.code+g-1).toChar()}",Modifier.padding(horizontal=7.dp,vertical=3.dp),color=Blue,style=MaterialTheme.typography.labelSmall)}}
+                Spacer(Modifier.weight(1f))
+                Text("${m.sets.count{it.done}}/${m.sets.size}组",color=Muted,style=MaterialTheme.typography.labelMedium)
+            }
+            exercises.find { it.id == m.exerciseId && it.name == m.name }?.let { e ->
+                TextButton(onClick = { showGuide(e) }) { Text("查看动作示范与要领 ›") }
+            }
+            m.sets.forEachIndexed { i, x ->
+                QuickSetRow(x, i, TrainingAssist.reference(m, i, previous?.movement), next?.set?.id == x.id,
+                    enabled = s.pausedAt == null, busy = busy,
+                    onEdit = { grams, reps -> vm.saveQuickSet(m.id, x.id, grams, reps) },
+                    onComplete = { grams, reps -> vm.completeQuickSet(m.id, x.id, grams, reps) },
+                    onUndo = { vm.undoQuickSet(m.id, x.id) }, onAdvanced = { edit = m.id to it },
+                    onRemove = if (m.sets.size > 1) ({ ask("删除这一组？") { vm.act { vm.repo.removeSet(m.id, x.id) } } }) else null)
+            }
+            Row(Modifier.fillMaxWidth()){
+                TextButton(enabled=s.pausedAt==null&&!busy,onClick={vm.act{vm.repo.addSet(m.id)}},modifier=Modifier.weight(1f)){Text("＋ 添加一组")}
+                TextButton(enabled=s.pausedAt==null&&!busy&&m.sets.size<100,onClick={vm.addDrop(m.id)},modifier=Modifier.weight(1f)){Text("＋ 递减组")}
+            }
+            m.note.takeIf{it.isNotBlank()}?.let{Text(it,color=Muted,style=MaterialTheme.typography.bodySmall)}
+        }}
+        Button(enabled=!busy&&s.movements.any{m->m.sets.any{it.done}},onClick={ask("结束训练并保存历史？未完成的组不会计入容量。",vm::finish)},modifier=Modifier.fillMaxWidth(),contentPadding=PaddingValues(16.dp)){Text("结束并保存训练")}
+        TextButton(enabled=!busy,onClick={ask("放弃此训练？当前记录将删除。"){vm.act{vm.repo.deleteSession(s.id);vm.stopTimer()}}},modifier=Modifier.fillMaxWidth()){Text("放弃训练",color=Muted)}
+    }
+    edit?.let{(m,x)->SetForm(x,{edit=null}){updated->vm.act{vm.repo.updateSet(m,updated)}}}
+}
+
+@Composable private fun ActiveTrainingHeader(s: Session, vm: MainViewModel, busy: Boolean, next: SetTarget?) {
+    val owner = LocalLifecycleOwner.current
+    val now by produceState(System.currentTimeMillis(), owner, s.id) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) { value = System.currentTimeMillis(); delay(1000) }
+        }
+    }
         Panel(color=Night){
             Row(verticalAlignment=Alignment.CenterVertically){
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Volt))
@@ -64,34 +108,4 @@ import kotlinx.coroutines.delay
                 color=Color(0xFFD5DACF),style=MaterialTheme.typography.bodySmall)
             if(Rules.restMs(s,now)>0)OutlinedButton(onClick={vm.skipRest()},modifier=Modifier.fillMaxWidth()){Text("跳过休息",color=Volt)}
         }
-        s.movements.forEach{m->Panel{
-            val previous = remember(s.id, m.exerciseId, sessions) { TrainingAssist.previous(s, m.exerciseId, sessions) }
-            Text(previous?.let { "上次 ${stamp(it.session.startedAt)}" } ?: "首次记录，按实际表现填写",
-                color=Muted,style=MaterialTheme.typography.labelSmall)
-            Row(verticalAlignment=Alignment.CenterVertically){
-                ExerciseArt(exercises.find { it.id == m.exerciseId }?.muscle ?: "全身", Modifier.size(44.dp))
-                Text(m.name,Modifier.padding(start=10.dp).weight(1f,fill=false),fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
-                m.supersetGroup?.let{g->Surface(color=PaleBlue,shape=RoundedCornerShape(8.dp),modifier=Modifier.padding(start=8.dp)){
-                    Text("超级组 ${('A'.code+g-1).toChar()}",Modifier.padding(horizontal=7.dp,vertical=3.dp),color=Blue,style=MaterialTheme.typography.labelSmall)}}
-                Spacer(Modifier.weight(1f))
-                Text("${m.sets.count{it.done}}/${m.sets.size}组",color=Muted,style=MaterialTheme.typography.labelMedium)
-            }
-            m.sets.forEachIndexed { i, x ->
-                QuickSetRow(x, i, TrainingAssist.reference(m, i, previous?.movement), next?.set?.id == x.id,
-                    enabled = s.pausedAt == null, busy = busy,
-                    onEdit = { grams, reps -> vm.saveQuickSet(m.id, x.id, grams, reps) },
-                    onComplete = { grams, reps -> vm.completeQuickSet(m.id, x.id, grams, reps) },
-                    onUndo = { vm.undoQuickSet(m.id, x.id) }, onAdvanced = { edit = m.id to it },
-                    onRemove = if (m.sets.size > 1) ({ ask("删除这一组？") { vm.act { vm.repo.removeSet(m.id, x.id) } } }) else null)
-            }
-            Row(Modifier.fillMaxWidth()){
-                TextButton(enabled=s.pausedAt==null&&!busy,onClick={vm.act{vm.repo.addSet(m.id)}},modifier=Modifier.weight(1f)){Text("＋ 添加一组")}
-                TextButton(enabled=s.pausedAt==null&&!busy&&m.sets.size<100,onClick={vm.addDrop(m.id)},modifier=Modifier.weight(1f)){Text("＋ 递减组")}
-            }
-            m.note.takeIf{it.isNotBlank()}?.let{Text(it,color=Muted,style=MaterialTheme.typography.bodySmall)}
-        }}
-        Button(enabled=!busy&&s.movements.any{m->m.sets.any{it.done}},onClick={ask("结束训练并保存历史？未完成的组不会计入容量。",vm::finish)},modifier=Modifier.fillMaxWidth(),contentPadding=PaddingValues(16.dp)){Text("结束并保存训练")}
-        TextButton(enabled=!busy,onClick={ask("放弃此训练？当前记录将删除。"){vm.act{vm.repo.deleteSession(s.id);vm.stopTimer()}}},modifier=Modifier.fillMaxWidth()){Text("放弃训练",color=Muted)}
-    }
-    edit?.let{(m,x)->SetForm(x,{edit=null}){updated->vm.act{vm.repo.updateSet(m,updated)}}}
 }

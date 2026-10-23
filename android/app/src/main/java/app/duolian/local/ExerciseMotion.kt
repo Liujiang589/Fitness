@@ -13,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -67,11 +68,12 @@ private val DemoMuscle = Color(0xFFD87554)
 /** Native vector scene: no image upload, no remote media, no rescaled low-resolution GIF. */
 @Composable internal fun ExerciseMotionCanvas(guide: ExerciseGuide, progress: State<Float>,
     modifier: Modifier = Modifier, angle: Float = 32f) {
-    Canvas(modifier.background(DemoBackground).semantics {
+    Box(modifier.background(DemoBackground).graphicsLayer().semantics {
         contentDescription = "${guide.name}动态示范，主要肌群：${guide.focus}"
-    }) {
-        drawExercisePose(MotionEngine.sample(guide.kind, MotionEngine.amount(progress.value)), guide, angle)
-    }
+    }.drawWithCache {
+        val pose = MotionEngine.sample(guide.kind, MotionEngine.amount(progress.value))
+        onDrawBehind { drawExercisePose(pose, guide, angle) }
+    })
 }
 
 @Composable internal fun ExerciseMotionPreview(guide:ExerciseGuide, playing:Boolean, modifier:Modifier=Modifier) {
@@ -227,7 +229,7 @@ private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, a
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable internal fun ExerciseDemoPlayer(guide:ExerciseGuide) {
+@Composable internal fun ExerciseDemoPlayer(guide:ExerciseGuide, onPhaseChanged: (Int) -> Unit = {}) {
     val configuration=LocalConfiguration.current
     val largeSceneHeight=minOf((configuration.screenWidthDp-60)/1.32f,
         configuration.screenHeightDp*.52f).coerceAtLeast(120f).dp
@@ -238,6 +240,8 @@ private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, a
     var large by rememberSaveable(guide.key) { mutableStateOf(false) }
     val progress=rememberMotionClock(guide.key,playing,speed)
     val phase by remember(progress) { derivedStateOf { MotionEngine.phase(progress.floatValue) } }
+    val phaseCallback by rememberUpdatedState(onPhaseChanged)
+    LaunchedEffect(phase) { phaseCallback(phase) }
     @Composable fun player(modifier:Modifier=Modifier) {
         Column(modifier,verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Surface(color=DemoBackground,shape=RoundedCornerShape(22.dp)) {
@@ -293,74 +297,85 @@ private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, a
     }
 }
 
-@Composable internal fun ExerciseGuideDialog(exercise:Exercise,busy:Boolean,dismiss:()->Unit,
-    edit:()->Unit,favorite:()->Unit,delete:()->Unit) {
-    val guide=remember(exercise.name,exercise.equipment){ExerciseGuides.find(exercise)}
-    val height=(LocalConfiguration.current.screenHeightDp*.92f).dp
-    val uri=LocalUriHandler.current
-    Dialog(onDismissRequest=dismiss,properties=DialogProperties(usePlatformDefaultWidth=false)) {
-        Surface(Modifier.fillMaxWidth().padding(horizontal=12.dp).heightIn(max=height),
-            shape=RoundedCornerShape(28.dp),color=Color.White) {
-            Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment=Alignment.CenterVertically) {
+@OptIn(ExperimentalLayoutApi::class)
+@Composable internal fun ExerciseGuideDialog(exercise: Exercise, busy: Boolean, dismiss: () -> Unit,
+    edit: () -> Unit, favorite: () -> Unit, delete: () -> Unit, readOnly: Boolean = false) {
+    val original = remember(exercise.name, exercise.equipment) { ExerciseGuides.find(exercise) }
+    var alternativeKey by rememberSaveable(exercise.id) { mutableStateOf<String?>(null) }
+    val guide = alternativeKey?.let { key -> ExerciseGuides.all.find { it.key == key } } ?: original
+    val exploring = alternativeKey != null && guide != null
+    var topic by rememberSaveable(guide?.key) { mutableIntStateOf(0) }
+    var phase by rememberSaveable(guide?.key) { mutableIntStateOf(0) }
+    val scroll = rememberScrollState()
+    LaunchedEffect(guide?.key) { scroll.scrollTo(0) }
+    val height = (LocalConfiguration.current.screenHeightDp * .94f).dp
+    val uri = LocalUriHandler.current
+    Dialog(onDismissRequest = dismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxWidth().padding(horizontal = 10.dp).heightIn(max = height),
+            shape = RoundedCornerShape(28.dp), color = Color.White) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (exploring) TextButton(onClick = { alternativeKey = null }) { Text("‹ 返回原动作") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(exercise.name,style=MaterialTheme.typography.titleLarge)
-                        Text("${exercise.muscle} · ${exercise.equipment}",color=Blue,
-                            style=MaterialTheme.typography.labelMedium)
+                        Text(if (exploring) guide!!.name else exercise.name, style = MaterialTheme.typography.titleLarge)
+                        Text(guide?.let { "${it.muscle} · ${it.equipment}" } ?: "${exercise.muscle} · ${exercise.equipment}",
+                            color = Blue, style = MaterialTheme.typography.labelMedium)
                     }
-                    TextButton(onClick=dismiss){Text("关闭")}
+                    TextButton(onClick = dismiss) { Text("关闭") }
                 }
-                Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState()),
-                    verticalArrangement=Arrangement.spacedBy(18.dp)) {
-                    if(guide!=null) {
-                        ExerciseDemoPlayer(guide)
-                        Text("动作要领",style=MaterialTheme.typography.titleLarge)
-                        guide.stages.forEachIndexed { i,text ->
-                            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                                Surface(color=PaleBlue,shape=RoundedCornerShape(10.dp)) {
-                                    Text("${i+1}",Modifier.padding(horizontal=12.dp,vertical=8.dp),color=Blue,
-                                        fontWeight=FontWeight.Bold)
-                                }
-                                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                                    Text(guide.phaseNames[i],fontWeight=FontWeight.SemiBold)
-                                    Text(text,color=Muted,style=MaterialTheme.typography.bodyMedium)
-                                }
+                Column(Modifier.weight(1f, fill = false).verticalScroll(scroll),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    if (guide != null) {
+                        key(guide.key) { ExerciseDemoPlayer(guide) { phase = it } }
+                        CoachingCue(guide)
+                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("动作要领", "常见错误", "替代动作").forEachIndexed { index, name ->
+                                FilterChip(selected = topic == index, onClick = { topic = index }, label = { Text(name) })
                             }
                         }
-                        Surface(color=Color(0xFFFFF2E8),shape=RoundedCornerShape(18.dp)) {
-                            Column(Modifier.padding(15.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                                Text("留意这些常见错误",fontWeight=FontWeight.SemiBold,color=Ink)
-                                guide.mistakes.forEach { Text("• $it",color=Ink,style=MaterialTheme.typography.bodyMedium) }
+                        when (topic) {
+                            0 -> {
+                                Text("呼吸与控制", fontWeight = FontWeight.SemiBold)
+                                Text(guide.breathing, color = Muted, style = MaterialTheme.typography.bodyMedium)
+                                DetailDisclosure("完整分解说明") { CoachingStages(guide, phase) }
                             }
+                            1 -> CoachingMistakes(guide)
+                            2 -> CoachingAlternatives(guide) { alternativeKey = it.key }
                         }
-                        Text("呼吸与控制",fontWeight=FontWeight.SemiBold)
-                        Text(guide.breathing,color=Muted,style=MaterialTheme.typography.bodyMedium)
+                        if (exploring) Text("需要换练时，在计划编辑中选择该动作，并重新设置合适重量。",
+                            color = Muted, style = MaterialTheme.typography.bodySmall)
                     } else {
-                        EmptyPanel("这个自定义动作暂未内置示范","当前内置覆盖基础动作库。请按该动作的具体要求练习，可在下方保留个人要点。")
+                        EmptyPanel("这个自定义动作暂未内置示范", "暂不为未知动作匹配相似示范，可在个人设置中保留具体练习要点。")
                     }
-                    DetailDisclosure("个人训练设置") {
-                        Text("默认重量 ${kg(exercise.defaultGrams)} kg",fontWeight=FontWeight.SemiBold)
-                        if(exercise.notes.isNotBlank())Text(exercise.notes,color=Muted)
-                        if(exercise.mediaUri!=null) {
-                            Text("此前保存的个人照片",color=Muted,style=MaterialTheme.typography.labelMedium)
-                            ExercisePhoto(exercise.mediaUri,Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(14.dp)))
+                    if (!exploring) DetailDisclosure("个人训练设置") {
+                        Text("默认重量 ${kg(exercise.defaultGrams)} kg", fontWeight = FontWeight.SemiBold)
+                        if (exercise.notes.isNotBlank()) Text(exercise.notes, color = Muted)
+                        if (exercise.mediaUri != null) {
+                            Text("此前保存的个人照片", color = Muted, style = MaterialTheme.typography.labelMedium)
+                            ExercisePhoto(exercise.mediaUri, Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(14.dp)))
                         }
-                        TextButton(enabled=!busy,onClick=edit){Text("编辑个人设置")}
+                        if (!readOnly) TextButton(enabled = !busy, onClick = edit) { Text("编辑个人设置") }
                     }
                     DetailDisclosure("示范说明与动作管理") {
-                        Text("原创矢量小人展示常见动作路径；实际动作幅度应保持稳定、舒适。",color=Muted,
-                            style=MaterialTheme.typography.bodySmall)
-                        TextButton(onClick={runCatching{uri.openUri("https://www.acefitness.org/resources/everyone/exercise-library/")}}) {
+                        Text("原创矢量示范展示常见动作路径，按可控、舒适的幅度练习。替代动作的器械、阻力和动作模式可能不同。",
+                            color = Muted, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { runCatching { uri.openUri("https://www.acefitness.org/resources/everyone/exercise-library/") } }) {
                             Text("技术参考 · ACE 动作库 ↗")
                         }
-                        TextButton(enabled=!busy,onClick=delete){Text("删除这个动作",color=MaterialTheme.colorScheme.error)}
+                        if (!exploring && !readOnly) TextButton(enabled = !busy, onClick = delete) {
+                            Text("删除这个动作", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
-                Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(enabled=!busy,onClick=favorite,modifier=Modifier.weight(1f)) {
-                        Text(if(exercise.favorite)"★ 已收藏" else "☆ 收藏动作")
+                when {
+                    exploring -> Button(onClick = { alternativeKey = null }, modifier = Modifier.fillMaxWidth()) { Text("返回原动作") }
+                    readOnly -> Button(onClick = dismiss, modifier = Modifier.fillMaxWidth()) { Text("完成查看") }
+                    else -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(enabled = !busy, onClick = favorite, modifier = Modifier.weight(1f)) {
+                            Text(if (exercise.favorite) "★ 已收藏" else "☆ 收藏动作")
+                        }
+                        Button(enabled = !busy, onClick = edit, modifier = Modifier.weight(1f)) { Text("编辑动作") }
                     }
-                    Button(enabled=!busy,onClick=edit,modifier=Modifier.weight(1f)){Text("编辑动作")}
                 }
             }
         }

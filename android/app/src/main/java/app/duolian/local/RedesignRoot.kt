@@ -1,4 +1,4 @@
-﻿package app.duolian.local
+package app.duolian.local
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -30,18 +30,20 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.duolian.local.domain.*
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity(){
     override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0xFFF5F5F0.toInt(), 0xFFF5F5F0.toInt()),
             navigationBarStyle = SystemBarStyle.light(0xFFF5F5F0.toInt(), 0xFFF5F5F0.toInt()))
-        setContent{DuolianTheme { DuolianScreen() }}
+        setContent{DuolianTheme { DuolianScreen(openOutdoor = intent.getBooleanExtra("open_outdoor", false)) }}
     }
 }
 private data class Confirmation(val title:String,val action:()->Unit)
 
-@Composable private fun DuolianScreen(vm:MainViewModel=viewModel()){
+@Composable private fun DuolianScreen(vm:MainViewModel=viewModel(), openOutdoor: Boolean = false){
     val exercises by vm.exercises.collectAsStateWithLifecycle();val plans by vm.plans.collectAsStateWithLifecycle()
     val sessions by vm.sessions.collectAsStateWithLifecycle();val body by vm.body.collectAsStateWithLifecycle()
     val food by vm.food.collectAsStateWithLifecycle();val water by vm.water.collectAsStateWithLifecycle()
@@ -52,6 +54,8 @@ private data class Confirmation(val title:String,val action:()->Unit)
     val autoBackupAt by vm.autoBackupAt.collectAsStateWithLifecycle()
     val updater: AppUpdateViewModel = viewModel()
     val updateState by updater.state.collectAsStateWithLifecycle()
+    val outdoorBlocksPrompt by remember { app.duolian.local.outdoor.OutdoorService.live
+        .map { it.run != null || it.busy }.distinctUntilChanged() }.collectAsStateWithLifecycle(false)
     val context = LocalContext.current
     val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
@@ -62,7 +66,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
     var tab by rememberSaveable{mutableIntStateOf(0)};var nutrition by rememberSaveable{mutableStateOf(false)}
     var exerciseForm by remember{mutableStateOf(false)};var editExercise by remember{mutableStateOf<Exercise?>(null)}
     var planForm by remember{mutableStateOf(false)};var editPlan by remember{mutableStateOf<Plan?>(null)}
-    var detail by remember{mutableStateOf<Exercise?>(null)};var auxiliary by remember{mutableStateOf<String?>(null)}
+    var detail by remember{mutableStateOf<Exercise?>(null)};var auxiliary by remember{mutableStateOf<String?>(if(openOutdoor) "outdoor" else null)}
     var editBody by remember{mutableStateOf<Body?>(null)};var editFood by remember{mutableStateOf<Food?>(null)}
     var confirm by remember{mutableStateOf<Confirmation?>(null)}
     val ask:(String,()->Unit)->Unit={title,action->confirm=Confirmation(title,action)}
@@ -88,6 +92,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
                 DropdownMenuItem(text = { Text("记录饮水") }, onClick = { quickMenu = false; a.auxiliary("water:${LocalDate.now()}") })
                 DropdownMenuItem(text = { Text("记录体重") }, onClick = { quickMenu = false; a.body(null) })
                 DropdownMenuItem(text = { Text("创建计划") }, onClick = { quickMenu = false; a.plan(null) })
+                DropdownMenuItem(text = { Text("步行与跑步") }, onClick = { quickMenu = false; a.auxiliary("outdoor") })
             }
         }
         if(busy)LinearProgressIndicator(Modifier.fillMaxWidth(),color=Blue)
@@ -99,22 +104,24 @@ private data class Confirmation(val title:String,val action:()->Unit)
             1->ToolsPage(sessions,vm,hiitRuns)
             2->ExercisePage(exercises,a)
             3->HistoryPage(sessions,exercises,plans,body,food,vm,a)
-            else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("Duolian-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("Duolian-before-import.json")},{auto.launch("Duolian-auto-${LocalDate.now()}.json")},autoBackupAt,updateState){if(updateState.downloading || updateState.file!=null)updater.open() else updater.check(true)}
+            else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("独练-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("独练-导入前备份.json")},{auto.launch("独练-自动备份-${LocalDate.now()}.json")},autoBackupAt,updateState){if(updateState.downloading || updateState.file!=null)updater.open() else updater.check(true)}
         }
     }}
     AppUpdateHost(updater, updateState, canPrompt = ready && sessions.none { it.endedAt == null } &&
-        !exerciseForm && !planForm && detail == null && auxiliary == null && confirm == null && pending == null)
+        !outdoorBlocksPrompt && !exerciseForm && !planForm && detail == null && auxiliary == null && confirm == null && pending == null)
     if(exerciseForm)ExerciseForm(editExercise,{exerciseForm=false}){x->vm.act{vm.repo.saveExercise(x)}}
     if(planForm)PlanForm(editPlan,exercises,{planForm=false}){x->vm.act{vm.repo.savePlan(x)}}
     detail?.let { e -> ExerciseGuideDialog(e,busy,
         dismiss={detail=null},
         edit={detail=null;a.exercise(e)},
         favorite={val updated=e.copy(favorite=!e.favorite);detail=updated;vm.act{vm.repo.saveExercise(updated)}},
-        delete={detail=null;ask("删除「${e.name}」？计划引用的动作需先从计划移除。") {vm.act{vm.repo.deleteExercise(e.id)}}}) }
+        delete={detail=null;ask("删除「${e.name}」？计划引用的动作需先从计划移除。") {vm.act{vm.repo.deleteExercise(e.id)}}},
+        readOnly=sessions.any { it.endedAt == null }) }
     confirm?.let{c->AlertDialog(onDismissRequest={confirm=null},title={Text(c.title)},confirmButton={TextButton(enabled=!busy,onClick={c.action();confirm=null}){Text("确认")}},dismissButton={TextButton(onClick={confirm=null}){Text("取消")}})}
     pending?.let{b->AlertDialog(onDismissRequest={vm.pendingImport.value=null},title={Text("确认替换全部本地数据？")},text={Text("${b.exercises.size} 个动作、${b.plans.size} 份计划、${b.sessions.size} 场训练。现有数据会先保存为恢复备份。")},confirmButton={TextButton(enabled=!busy,onClick=vm::confirmImport){Text("备份并替换")}},dismissButton={TextButton(onClick={vm.pendingImport.value=null}){Text("取消")}})}
     val kind=auxiliary?.substringBefore(':');val auxDate=auxiliary?.split(':')?.let{if(it.size>2)it[2] else if(kind=="water"&&it.size>1)it[1] else LocalDate.now().toString()}?:LocalDate.now().toString()
     when(kind){
+        "outdoor" -> OutdoorPage({ auxiliary = null })
         "rest"->FieldsDialog("组间休息",listOf("秒（0–600）" to rest.toString()),{auxiliary=null}){v->val seconds=v[0].toInt();require(seconds in 0..600){"休息需为0–600秒"};vm.setRest(seconds)}
         "body"->FieldsDialog(if(editBody==null)"记录身体数据" else "编辑身体记录",listOf("日期" to(editBody?.date?:auxDate),"体重 kg" to(editBody?.let{kg(it.grams)}?:""),"体脂 %（可空）" to(editBody?.fatPercent?.toString()?:"")),{auxiliary=null}){v->val b=Body(id=editBody?.id?:newId(),date=v[0],grams=Rules.parseKg(v[1]),fatPercent=v[2].takeIf{it.isNotBlank()}?.toDouble());Rules.body(b);vm.act{vm.repo.saveBody(b)}}
         "food","meal" -> FoodEntryDialog(editFood, auxDate,
@@ -155,14 +162,14 @@ private data class Confirmation(val title:String,val action:()->Unit)
         }}
         item{Section("数据与备份")}
         item{GroupCard{
-            IconSettingRow(0,Color(0xFF2C8C63),"导出全部数据","duolian-native v3 · JSON",enabled=!busy,onClick=export)
+            IconSettingRow(0,Color(0xFF2C8C63),"导出全部数据","duolian-native v4 · 含运动位置",enabled=!busy,onClick=export)
             HorizontalDivider(color=Page)
-            IconSettingRow(0,Blue,"导入备份","支持 v1 / v2 / v3，导入前自动留快照",enabled=!busy,onClick=import)
+            IconSettingRow(0,Blue,"导入备份","支持 v1–v4，导入前自动留快照",enabled=!busy,onClick=import)
             HorizontalDivider(color=Page)
             IconSettingRow(0,Color(0xFFE59B42),"导入前备份","最近一次导入前的恢复文件",onClick=recovery)
             HorizontalDivider(color=Page)
             IconSettingRow(0,Color(0xFF7C5CE0),"自动备份",
-                if(autoBackupAt==null)"每日首次打开自动备份（上限 8 MiB）" else "上次 ${stamp(autoBackupAt)}",
+                if(autoBackupAt==null)"每日首次打开自动备份（上限 32 MiB，含位置）" else "上次 ${stamp(autoBackupAt)}",
                 onClick=autoBackup)
         }}
         item{Section("关于")}
@@ -174,7 +181,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
                 updateState.downloading -> "更新正在下载，点击查看进度"
                 updateState.file!=null -> "新版已下载，点击安装"
                 updateState.checking -> "正在检查新版本…"
-                else -> "当前使用同 Wi-Fi 更新服务"
+                else -> "联网检查新版，训练记录保留在本机"
             },onClick=checkUpdate)
         }}
         item { AuthorContactCard() }

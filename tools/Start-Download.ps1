@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$PythonPath,
     [string]$BindAddress,
     [ValidateRange(1024,65535)][int]$Port = 8765
@@ -23,7 +23,7 @@ if (-not $BindAddress) {
 $fitnessUrl = "http://${BindAddress}:$Port"
 $previous = $null
 try { $previous = Invoke-RestMethod -Uri "$fitnessUrl/health" -TimeoutSec 2 } catch {}
-if ($previous -and $previous.filename -match '^Duolian-(?:V[0-9]+\.[0-9]+|[0-9.]+-debug)\.apk$') {
+if ($previous -and $previous.filename -match '^(?:独练|Duolian)-(?:V[0-9]+\.[0-9]+|[0-9.]+-debug)\.apk$') {
     Write-Output "Download server is already running: $fitnessUrl/"
     exit 0
 }
@@ -45,7 +45,7 @@ for ($attempt=0; $attempt -lt 12; $attempt++) {
     Start-Sleep -Milliseconds 350
     try {
         $fitnessRelease = Invoke-RestMethod -Uri "$fitnessUrl/health" -TimeoutSec 1
-        if ($fitnessRelease.filename -match '^Duolian-(?:V[0-9]+\.[0-9]+|[0-9.]+-debug)\.apk$') { $fitnessHealthy=$true; break }
+        if ($fitnessRelease.filename -match '^(?:独练|Duolian)-(?:V[0-9]+\.[0-9]+|[0-9.]+-debug)\.apk$') { $fitnessHealthy=$true; break }
     } catch {}
     if ($fitnessProcess.HasExited) { break }
 }

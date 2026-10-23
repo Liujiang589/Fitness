@@ -6,6 +6,37 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NutritionTest {
+    @Test fun servingLabelScalesToActualEatenWeight() {
+        val label = NutritionEstimator.label("custom", "蛋白粉", 20.0, 3.0, 1.0, 30.0)
+        val food = NutritionEstimator.portion(label, 45.0)
+        assertEquals(30.0, food.protein, .00001)
+        assertEquals(4.5, food.carbs, .00001)
+        assertEquals(1.5, food.fat, .00001)
+        assertEquals(151.5, food.calories, .00001)
+    }
+    @Test fun labelRejectsInvalidServingAndMismatchedUnits() {
+        listOf(0.0, -.1, 3001.0, Double.NaN, Double.POSITIVE_INFINITY).forEach { grams ->
+            assertTrue(runCatching { NutritionEstimator.label("id", "name", 1.0, 2.0, 3.0, grams) }.isFailure)
+        }
+        listOf(-1.0, Double.NaN, Double.POSITIVE_INFINITY, 40.0).forEach { protein ->
+            assertTrue(runCatching { NutritionEstimator.label("id", "name", protein, 3.0, 1.0, 30.0) }.isFailure)
+        }
+    }
+    @Test fun recentPortionsKeepSnapshotAndWeightFromLatestRecordedDate() {
+        val old = portion(100.0).copy(date = "2026-10-20")
+        val latest = portion(175.0).copy(date = "2026-10-23", protein = 35.0)
+        val result = NutritionEstimator.recentPortions(listOf(old, latest,
+            old.copy(grams = null), old.copy(grams = 0.0)))
+        assertEquals(1, result.size)
+        assertEquals(175.0, result.single().grams, .00001)
+        assertEquals(20.0, result.single().spec.proteinPer100, .00001)
+    }
+    @Test fun preparationFiltersDoNotConvertRawAndCookedWeight() {
+        assertEquals(FoodWeightState.COOKED, NutritionEstimator.weightState(rice))
+        assertEquals(FoodWeightState.RAW, NutritionEstimator.weightState(FoodCatalog.all.first { it.id == "usda_169756" }))
+        assertEquals(FoodWeightState.DRY, NutritionEstimator.weightState(rice.copy(preparation = "干重 / 燕麦")))
+        assertEquals(FoodWeightState.OTHER, NutritionEstimator.weightState(rice.copy(preparation = "包装标签 / 每100g")))
+    }
     private val rice = FoodCatalog.all.first { it.id == "usda_169757" }
     private fun portion(grams: Double) = NutritionEstimator.portion(rice, grams, "2026-10-22", "午餐")
 
@@ -70,7 +101,7 @@ class NutritionTest {
         val restored = Codec.decodeFromString<Backup>(Codec.encodeToString(backup))
         Rules.backup(restored)
         assertEquals(backup, restored)
-        assertEquals(3, restored.version)
+        assertEquals(4, restored.version)
     }
     @Test fun recentFoodsPreferLatestRecordAndDeduplicate() {
         val latest = portion(150.0).copy(protein = 30.0)

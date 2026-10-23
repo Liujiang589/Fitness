@@ -17,7 +17,7 @@ import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from string import Template
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 DEPS = ROOT / ".local-download-deps"
@@ -34,8 +34,9 @@ def release_info(root=ROOT):
     version = version_match.group(1)
     code = int(re.search(r'versionCode\s*=\s*(\d+)', build).group(1))
     short_version = version.count(".") == 1
-    filename = f"Duolian-V{version}.apk" if short_version else f"Duolian-{version}-debug.apk"
-    apk = root / filename
+    filenames = ([f"独练-V{version}.apk", f"Duolian-V{version}.apk"] if short_version
+                 else [f"Duolian-{version}-debug.apk"])
+    apk = next((root / name for name in filenames if (root / name).is_file()), root / filenames[0])
     if not apk.is_file() or apk.is_symlink():
         raise FileNotFoundError(f"Published APK not found: {apk.name}")
     stat = apk.stat()
@@ -105,7 +106,7 @@ def make_server(bind, port, output, root=ROOT):
     (output / "download-url.txt").write_text(base + "/\n", encoding="utf-8")
 
     class Handler(BaseHTTPRequestHandler):
-        server_version = "DuolianDownload/1"
+        server_version = "DulianDownload/1"
         def do_HEAD(self):
             self.respond(head=True)
         def do_GET(self):
@@ -146,7 +147,13 @@ def make_server(bind, port, output, root=ROOT):
                 self.send_response(206 if partial else 200)
                 self.send_header("Content-Type", "application/vnd.android.package-archive")
                 download_name = info["filename"] if info["version"].count(".") == 1 else f'Duolian-{info["version"]}.apk'
-                self.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
+                if download_name.isascii():
+                    disposition = f'attachment; filename="{download_name}"'
+                else:
+                    # HTTP headers are Latin-1. Browsers use the RFC 5987 UTF-8 filename.
+                    disposition = (f'attachment; filename="Dulian-V{info["version"]}.apk"; '
+                                   f"filename*=UTF-8''{quote(download_name, safe='')}")
+                self.send_header("Content-Disposition", disposition)
                 self.send_header("Content-Length", str(end - start + 1))
                 self.send_header("Accept-Ranges", "bytes")
                 self.send_header("ETag", f'"{info["sha256"]}"')
@@ -204,7 +211,7 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT / ".local-download")
     args = parser.parse_args()
     server, base = make_server(args.bind, args.port, args.output)
-    print(f"Duolian download ready: {base}/", flush=True)
+    print(f"独练下载服务已就绪：{base}/", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

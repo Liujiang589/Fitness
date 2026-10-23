@@ -13,6 +13,7 @@ private val Application.preferences by preferencesDataStore("preferences")
 class DuolianApp : Application() {
     val database by lazy { Room.databaseBuilder(this, LocalDatabase::class.java, "duolian.db").build() }
     val repository by lazy { Repository(database) }
+    val outdoor by lazy { app.duolian.local.data.OutdoorStore(database) }
     private val restKey = intPreferencesKey("rest_seconds")
     val restSeconds by lazy { preferences.data.map { (it[restKey] ?: 60).coerceIn(0, 600) } }
     suspend fun setRest(seconds: Int) { require(seconds in 0..600); preferences.edit { it[restKey] = seconds } }

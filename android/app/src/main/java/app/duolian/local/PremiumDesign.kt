@@ -58,11 +58,11 @@ import java.time.LocalDate
 
 @Composable internal fun PremiumHeader(tab: Int, nutrition: Boolean, onNutrition: () -> Unit,
     onQuickRecord: () -> Unit) {
-    val today = LocalDate.now()
-    val titles = listOf("为自己，再进一步。", "训练工具", "探索动作", "看见每一次进步", "我的训练空间")
-    val subtitles = listOf("DUOLIAN / DAILY TRAINING", "YOUR TRAINING ESSENTIALS",
+    val today = rememberTrainingDate()
+    val titles = listOf("今天，按自己的节奏。", "训练工具", "探索动作", "看见每一次进步", "我的训练空间")
+    val subtitles = listOf("独练 / DAILY TRAINING", "YOUR TRAINING ESSENTIALS",
         "THE MOVEMENT LIBRARY", "PROGRESS / YOUR JOURNEY", "YOUR PERSONAL SPACE")
-    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp),
+    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Eyebrow(subtitles[tab])
@@ -110,16 +110,11 @@ import java.time.LocalDate
     }
 }
 
-/** The spotlight always uses an existing plan. No synthetic workout or invented metric. */
-@Composable internal fun TrainingSpotlight(plans: List<Plan>, busy: Boolean, vm: MainViewModel,
-    createPlan: () -> Unit) {
-    val scheduled = plans.firstOrNull { LocalDate.now().dayOfWeek.value in it.weekdays }
-    val plan = scheduled ?: plans.firstOrNull()
+/** An actual user plan or a clear rest/first-use state; no invented workout. */
+@Composable internal fun TrainingSpotlight(focus: HomeFocus, busy: Boolean, action: () -> Unit) {
     Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFFF1F0E7)) {
         Box(Modifier.fillMaxWidth().heightIn(min = 290.dp)) {
-            Image(painterResource(R.drawable.training_daylight), contentDescription = null,
-                modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop,
-                alignment = Alignment.CenterEnd)
+            CachedPhoto(R.drawable.training_daylight, Modifier.matchParentSize())
             Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(
                 Color(0xFFF4F2E8), Color(0xFFF4F2E8).copy(alpha = .88f), Color.Transparent))))
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(
@@ -127,24 +122,21 @@ import java.time.LocalDate
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(6.dp).background(Blue, CircleShape))
-                    Text(if (scheduled != null) "今日安排" else "你的下一场训练", color = Blue,
+                    Text(focus.label, color = Blue,
                         style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
-                    Spacer(Modifier.weight(1f))
-                    Text("慢慢来，也在向前", color = Ink,
-                        style = MaterialTheme.typography.labelSmall)
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(plan?.name ?: "动一动，\n感觉更好。", color = Ink,
+                Text(focus.title, color = Ink,
                     style = MaterialTheme.typography.headlineLarge, maxLines = 3,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(.74f))
-                Text(if (plan == null) "先选择想练的动作，安排自己的第一场训练" else "计划已就绪，跟着动作逐组完成",
+                Text(focus.description,
                     color = Ink, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { if (plan == null) createPlan() else vm.act { vm.repo.start(plan.id) } },
+                Button(onClick = action,
                     enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(
                         containerColor = Night, contentColor = Volt)) {
-                    Text(if (plan == null) "创建我的计划" else "开始训练", fontWeight = FontWeight.Bold,
+                    Text(focus.action, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                     Text("↗", fontSize = 24.sp)
                 }
@@ -154,10 +146,10 @@ import java.time.LocalDate
 }
 
 @Composable internal fun WeeklyMomentum(history: List<Session>) {
-    val today = LocalDate.now()
+    val today = rememberTrainingDate()
     val monday = today.minusDays(today.dayOfWeek.value - 1L)
-    val thisWeek = history.filter { Analytics.dateOf(it) in monday..monday.plusDays(6) }
-    val trained = thisWeek.map { Analytics.dateOf(it) }.toSet()
+    val thisWeek = androidx.compose.runtime.remember(history, monday) { history.filter { Analytics.dateOf(it) in monday..monday.plusDays(6) } }
+    val trained = androidx.compose.runtime.remember(thisWeek) { thisWeek.map { Analytics.dateOf(it) }.toSet() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("保持你的节奏", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))

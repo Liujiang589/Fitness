@@ -1,6 +1,30 @@
-﻿# 独练 Android 工程（V1.5）
+# 独练 Android 工程（V1.12）
 
 包名 `app.duolian.local`，Kotlin + Jetpack Compose + Room，支持 Android 8.0（API 26）及以上。
+
+## V1.12 周回顾、饮食与性能
+
+新增周回顾、份量复用与标签换算。采用Release优化变体、旧证书签名；206项JVM与13项HTTP通过。[验证](../docs/V1_12_VERIFICATION.md)、[性能](../docs/V1_12_PERFORMANCE.md)。
+
+## V1.11 首页与动作指导
+
+今天/计划库分层、排期状态、40条短要领、分主题指导与替代示范，计划及训练内可查看。194项JVM、13项HTTP、Lint和构建通过；设备UI仅编译。[验证](../docs/V1_11_VERIFICATION.md)、[使用](../docs/V1_11_HOME_AND_COACHING.md)。
+
+## V1.10 户外记录与运动页
+
+独立会话记录器、单调计时、检查点恢复、定位状态与固定操作栏。181项JVM、13项HTTP、Lint和构建通过；设备测试编译但未运行。[验证](../docs/V1_10_VERIFICATION.md)、[手机验收](../docs/V1_10_ACCEPTANCE.md)。
+
+## V1.9 名称统一
+
+app_name资源、应用标题、安装包和导出名统一“独练”。工程显示名也统一；applicationId、签名、存储与高德配置不变。165项JVM、13项HTTP测试、Lint及构建通过；设备测试仅编译。[名称](../docs/BRANDING.md)、[验证](../docs/V1_9_VERIFICATION.md)。
+
+## V1.8 高德街道地图
+
+Key以被Git忽略的amap.local.properties注入manifest，AMAP_CONFIGURED=true。接入StreetRouteMap/OutdoorSpeed、高德11.3.100地图、显示坐标转换、地图跟随/全屏与实时速度；用户同意后才初始化SDK。165项JVM、Lint及两个APK构建通过，实际高德鉴权/地图渲染、GPS、锁屏及覆盖安装未做手机验收。[配置](../docs/AMAP_SETUP.md)、[使用](../docs/OUTDOOR_TRACKING.md)、[验证](../docs/V1_8_VERIFICATION.md)。
+
+## V1.7 户外记录
+
+新增 OutdoorPage、OutdoorService、OutdoorStore 和 domain/Outdoor，使用系统 GPS 和计步传感器，按需申请定位/身体活动权限。location/health 前台服务在用户主动开启后采集，轨迹与日步数逐条保存到现有 metadata 表，不修改 schema。备份 v4 兼容旧格式；新增14项JVM及2项设备存储测试，后者仅编译。158项JVM、Lint与构建通过；未做实机授权、UI、GPS、锁屏和覆盖安装验收。[说明](../docs/OUTDOOR_TRACKING.md)、[验证](../docs/V1_7_VERIFICATION.md)。
 
 ## V1.5 应用内更新
 
@@ -18,7 +42,7 @@ Repository初始化仅种入动作库，不再自动创建基础计划。训练�
 
 ## 当前版本命名
 
-versionName为1.5，关于页展示V1.5；内部versionCode19，继续使用现有签名。对外文件为Duolian-V1.5.apk。规则见[VERSIONING.md](../docs/VERSIONING.md)。
+versionName为1.12，关于页展示V1.12；内部versionCode26，继续使用现有签名。对外文件为独练-V1.12.apk。规则见[VERSIONING.md](../docs/VERSIONING.md)。
 
 ## 0.12.0 信息分层与高清配图
 

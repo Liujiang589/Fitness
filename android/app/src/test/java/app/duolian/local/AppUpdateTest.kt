@@ -120,7 +120,7 @@ class AppUpdateTest {
     @Test fun alteredDownloadsNeverBecomeAnInstallableFile() = runBlocking {
         val expected = release(); apk = apk.copyOf().also { it[7] = 99 }
         assertNotNull(runCatching { UpdateTransport("$base/latest.json").download(expected, directory) {} }.exceptionOrNull())
-        assertFalse(File(directory, "Duolian-20.apk").exists()); assertFalse(File(directory, "download.part").exists())
+        assertFalse(File(directory, "独练-20.apk").exists()); assertFalse(File(directory, "download.part").exists())
     }
     @Test fun truncatedChunkedDownloadsAreRemoved() = runBlocking {
         val expected = release(); apk = apk.copyOf(apk.size - 1); omitLength = true

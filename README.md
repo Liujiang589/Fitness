@@ -1,16 +1,16 @@
-﻿# Fitness · 独练
+﻿# 独练
 
 Android 本地健身训练应用（包名 `app.duolian.local`），自带安装包、源码工程与阶段文档。整理日期：2026-10-23。
 
 ## 当前版本
 
-- 版本：V1.5（内部versionCode 19），开发调试版。
-- 包名：`app.duolian.local`；系统：Android 8.0（API 26）及以上。
-- 安装包：[Duolian-V1.5.apk](Duolian-V1.5.apk)，12,799,398字节；[压缩交付包](独练-V1.5-安装包.zip)含APK、二维码与说明。
-- SHA-256：`cc92677f7b8e08b5a5b2010d8200445b74588b44e7a9c86f0d24a011badea5f8`。
-- 签名证书与 V1.4 一致，包名和数据库不变；具备覆盖升级条件，本次未执行手机安装。
+- 独练 V1.12（versionCode26），Android8.0及以上；Release优化变体，沿用原开发签名以兼容覆盖升级。
+- [独练-V1.12.apk](独练-V1.12.apk)，70,765,659字节；[ZIP交付包](https://duolian15.app.workbuddy.host/?sharecode=N6M3DJP2HU)含指南、体验清单与流畅度报告。
+- APK SHA-256：`e738162d2c104cb2b5d57b54ebfd37b10a58758dd4ac12523df842dac384c4b0`。建议先导出备份，再覆盖安装，不卸载旧版。
 
-把 APK 发送到安卓手机，在文件管理器中打开并按系统提示安装。若提示签名冲突，请先导出备份再处理；卸载会删除本地数据。
+第三批：近七天回顾、生熟状态筛选、最近份量复用与每份标签换算；高清照片后台解码缓存、数据处理移到后台、缩小计时更新范围、滚动暂停动作预览，启用发布压缩。原训练、动作指导及户外功能保留。
+
+206项JVM、13项HTTP、Lint和构建通过。真机情况与限制见[验证记录](docs/V1_12_VERIFICATION.md)、[流畅度检查](docs/V1_12_PERFORMANCE.md)；[使用指南](docs/V1_12_GUIDE.md)、[手机清单](docs/V1_12_ACCEPTANCE.md)。未同步WorkBuddy公网下载站。
 
 ## V1.5 应用内更新
 
@@ -116,7 +116,7 @@ Android 本地健身训练应用（包名 `app.duolian.local`），自带安装�
 
 ## 目录
 
-- `Duolian-V1.5.apk`：当前版本安装包；`独练-V1.5-安装包.zip`及同名目录为含二维码的交付文件，旧版本保留供回溯。
+- `独练-V1.12.apk`：当前安装包；`独练-V1.12-安装包.zip`及同名目录为交付文件，历史版本保留供回溯。
 - `android/`：Android 源码工程（Kotlin / Compose / Room），含构建脚本与单元测试。
 - [CHANGELOG.md](CHANGELOG.md)：版本迭代摘要。
 - [android/README.md](android/README.md)：源码结构、构建步骤与验证结果。

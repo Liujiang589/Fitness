@@ -3,16 +3,20 @@ package app.duolian.local.data
 import androidx.room.withTransaction
 import app.duolian.local.domain.*
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 
 class Repository(private val db: LocalDatabase) {
     private val dao = db.dao()
-    val exercises = dao.exercises().map { rows -> rows.map { Codec.decodeFromString<Exercise>(it.payload) } }
-    val plans = dao.plans().map { rows -> rows.map { Codec.decodeFromString<Plan>(it.payload) } }
-    val sessions = dao.sessions().map { rows -> rows.map { Codec.decodeFromString<Session>(it.payload) } }
-    val body = dao.body().map { rows -> rows.map { Codec.decodeFromString<Body>(it.payload) }.sortedByDescending { it.date } }
-    val food = dao.food().map { rows -> rows.map { Codec.decodeFromString<Food>(it.payload) }.sortedByDescending { it.date } }
-    val water = dao.water().map { rows -> rows.map { Codec.decodeFromString<Water>(it.payload) }.sortedByDescending { it.date } }
+    val exercises = dao.exercises().distinctUntilChanged().map { rows -> rows.map { Codec.decodeFromString<Exercise>(it.payload) } }.flowOn(Dispatchers.Default)
+    val plans = dao.plans().distinctUntilChanged().map { rows -> rows.map { Codec.decodeFromString<Plan>(it.payload) } }.flowOn(Dispatchers.Default)
+    val sessions = dao.sessions().distinctUntilChanged().map { rows -> rows.map { Codec.decodeFromString<Session>(it.payload) } }.flowOn(Dispatchers.Default)
+    val body = dao.body().distinctUntilChanged().map { rows -> rows.map { Codec.decodeFromString<Body>(it.payload) }.sortedByDescending { it.date } }.flowOn(Dispatchers.Default)
+    val food = dao.food().distinctUntilChanged().map { rows -> rows.map { Codec.decodeFromString<Food>(it.payload) }.sortedByDescending { it.date } }.flowOn(Dispatchers.Default)
+    val water = dao.water().distinctUntilChanged().map { rows -> rows.map { Codec.decodeFromString<Water>(it.payload) }.sortedByDescending { it.date } }.flowOn(Dispatchers.Default)
 
     suspend fun initialize() = db.withTransaction {
         if (dao.metadata("initialized") == null) {
@@ -145,7 +149,7 @@ class Repository(private val db: LocalDatabase) {
         body = dao.allBody().map { Codec.decodeFromString<Body>(it.payload) },
         food = dao.allFood().map { Codec.decodeFromString<Food>(it.payload) },
         water = dao.allWater().map { Codec.decodeFromString<Water>(it.payload) }, restSeconds = rest,
-        hiitRuns = hiitRuns()
+        hiitRuns = hiitRuns(), outdoorRuns = OutdoorStore(db).runs(), dailySteps = OutdoorStore(db).days()
     ) }
     suspend fun restore(b: Backup) {
         Rules.backup(b) // Complete validation BEFORE mutating anything.
@@ -159,6 +163,8 @@ class Repository(private val db: LocalDatabase) {
             b.water.forEach { dao.put(WaterRow(it.id, Codec.encodeToString(it))) }
             dao.put(MetaRow("initialized", "1"))
             dao.put(MetaRow(KEY_HIIT_RUNS, Codec.encodeToString(b.hiitRuns.takeLast(MAX_HIIT_RUNS))))
+            OutdoorStore(db).replace(b.outdoorRuns.map { r -> if (r.status == OutdoorStatus.ACTIVE)
+                r.copy(status = OutdoorStatus.PAUSED, segment = r.segment + 1) else r }, b.dailySteps)
         }
     }
     private companion object {

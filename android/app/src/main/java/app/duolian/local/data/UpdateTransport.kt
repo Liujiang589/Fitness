@@ -49,7 +49,7 @@ class UpdateTransport(private val manifestUrl: String) {
         withContext(Dispatchers.IO) {
             UpdatePolicy.validate(release, manifestUrl)
             require(directory.isDirectory || directory.mkdirs()) { "无法创建更新目录" }
-            val target = File(directory, "Duolian-${release.versionCode}.apk")
+            val target = File(directory, "独练-${release.versionCode}.apk")
             val partial = File(directory, "download.part")
             // Only this private update cache is cleaned; never touch records or backup files.
             directory.listFiles()?.filter { it != target }?.forEach { if (it.isFile) it.delete() }

@@ -108,12 +108,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         TimerService.stop(getApplication())
     }
     fun export(uri: Uri) = act {
-        val json = Codec.encodeToString(repo.snapshot(rest.value))
-        require(json.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) { "数据超过 8 MiB，请先清理部分历史记录" }
+        val snapshot = repo.snapshot(rest.value)
+        val json = withContext(Dispatchers.Default) {
+            Codec.encodeToString(snapshot).also {
+                require(it.toByteArray(Charsets.UTF_8).size <= MAX_BACKUP_BYTES) { "数据超过 32 MiB，请先导出 GPX 并清理部分历史记录" }
+            }
+        }
         withContext(Dispatchers.IO) {
             val stream = owner.contentResolver.openOutputStream(uri, "wt") ?: error("无法写入此位置")
             stream.bufferedWriter(Charsets.UTF_8).use { it.write(json) }
-        }; message.value = "备份已导出（格式 duolian-native v3）"
+        }; message.value = "备份已导出（duolian-native v4，包含运动位置）"
     }
     fun inspectImport(uri: Uri) = act {
         val text = withContext(Dispatchers.IO) {
@@ -124,20 +128,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 while (true) {
                     val n = input.read(buffer)
                     if (n < 0) break
-                    require(result.size() + n <= MAX_BACKUP_BYTES) { "备份不能超过 8 MiB" }
+                    require(result.size() + n <= MAX_BACKUP_BYTES) { "备份不能超过 32 MiB" }
                     result.write(buffer, 0, n)
                 }
                 result.toByteArray()
             }
-            require(bytes.size <= MAX_BACKUP_BYTES) { "备份不能超过 8 MiB" }
+            require(bytes.size <= MAX_BACKUP_BYTES) { "备份不能超过 32 MiB" }
             bytes.toString(Charsets.UTF_8)
         }
-        val b = Codec.decodeFromString<Backup>(text); Rules.backup(b); pendingImport.value = b
+        val b = withContext(Dispatchers.Default) { Codec.decodeFromString<Backup>(text).also(Rules::backup) }
+        pendingImport.value = b
     }
     fun confirmImport() = act {
+        require(!app.duolian.local.outdoor.OutdoorService.live.value.running) { "请先结束户外运动并关闭日常计步，再导入备份" }
         val b = pendingImport.value ?: return@act
         // Keep the last pre-import snapshot even if an I/O error or a later replacement fails.
-        val old = Codec.encodeToString(repo.snapshot(rest.value))
+        val snapshot = repo.snapshot(rest.value)
+        val old = withContext(Dispatchers.Default) { Codec.encodeToString(snapshot) }
         withContext(Dispatchers.IO) {
             val file = android.util.AtomicFile(File(owner.filesDir, "pre-import-backup.json"))
             val stream = file.startWrite()
@@ -187,7 +194,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     companion object {
-        const val MAX_BACKUP_BYTES = 8 * 1024 * 1024
+        const val MAX_BACKUP_BYTES = 32 * 1024 * 1024
         private const val AUTO_BACKUP = "auto-backup.json"
     }
 }

@@ -56,10 +56,11 @@ val Codec = Json { encodeDefaults = true; ignoreUnknownKeys = false }
     val id: String = newId(), val date: String = LocalDate.now().toString(), val ml: Int
 )
 @Serializable data class Backup(
-    val format: String = "duolian-native", val version: Int = 3,
+    val format: String = "duolian-native", val version: Int = 4,
     val exercises: List<Exercise>, val plans: List<Plan>, val sessions: List<Session>,
     val body: List<Body>, val food: List<Food>, val water: List<Water>, val restSeconds: Int = 60,
-    val hiitRuns: List<HiitRun> = emptyList()
+    val hiitRuns: List<HiitRun> = emptyList(),
+    val outdoorRuns: List<OutdoorRun> = emptyList(), val dailySteps: List<DailySteps> = emptyList()
 )
 
 object Rules {
@@ -175,7 +176,7 @@ object Rules {
         require(r.workSeconds in 5..600 && r.restSeconds in 0..600 && r.rounds in 1..100) { "记录参数无效" }
     }
     fun backup(b: Backup) {
-        require(b.format == "duolian-native" && b.version in 1..3) { "不兼容此备份格式；支持独练 v1 / v2 / v3" }
+        require(b.format == "duolian-native" && b.version in 1..4) { "不兼容此备份格式；支持独练 v1 / v2 / v3 / v4" }
         require(b.restSeconds in 0..600)
         unique(b.exercises.map { it.id }, 1000); b.exercises.forEach(::exercise)
         unique(b.plans.map { it.id }, 1000); b.plans.forEach { plan(it, b.exercises) }
@@ -197,6 +198,10 @@ object Rules {
         unique(b.food.map { it.id }, 20000); b.food.forEach(::food)
         unique(b.water.map { it.id }, 20000); b.water.forEach(::water)
         unique(b.hiitRuns.map { it.id }, 5000); b.hiitRuns.forEach(::hiitRun)
+        unique(b.outdoorRuns.map { it.id }, 5000); b.outdoorRuns.forEach(OutdoorMath::validate)
+        require(b.outdoorRuns.count { it.status != OutdoorStatus.FINISHED } <= 1) { "备份中存在多个未结束户外运动" }
+        require(b.dailySteps.size <= 20000 && b.dailySteps.map { it.date }.distinct().size == b.dailySteps.size)
+        b.dailySteps.forEach(OutdoorMath::validate)
     }
     fun parseKg(text: String): Long {
         val kg = text.toBigDecimalOrNull() ?: error("请输入有效重量")
