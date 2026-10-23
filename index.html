@@ -63,6 +63,11 @@ footer{margin-top:34px;text-align:center;font-size:12px;color:var(--muted)}
 @media (max-width:420px){
   h1{font-size:28px}.meta{grid-template-columns:repeat(2,1fr)}.wrap{padding:18px 14px 48px}
 }
+.qr{display:flex;gap:14px;align-items:center;margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
+.qr img{width:118px;height:118px;border-radius:10px;background:#fff;flex:0 0 auto}
+.qr b{display:block;font-size:15px;margin-bottom:4px}
+.qr span{font-size:12.5px;color:var(--muted);line-height:1.5}
+@media (max-width:420px){.qr img{width:96px;height:96px}}
 </style>
 </head>
 <body>
@@ -76,7 +81,7 @@ footer{margin-top:34px;text-align:center;font-size:12px;color:var(--muted)}
     <h1>把每一组都记清楚</h1>
     <div class="ver">V1.5 · versionCode 19</div>
     <p class="lead">训练方案、组类型与 RPE、HIIT 计时、营养记录、训练诊断，全部保存在你自己的手机里。</p>
-    <a class="btn" href="Duolian-V1.5.apk" download>
+    <a class="btn" id="dl" href="Duolian-V1.5.apk" download>
       下载 Android 安装包
       <small>12.8 MB</small>
     </a>
@@ -88,6 +93,10 @@ footer{margin-top:34px;text-align:center;font-size:12px;color:var(--muted)}
     </div>
   </div>
 
+    <div class="qr">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUgAAAFIAQAAAAAab1qeAAACU0lEQVR4nO1a2W7DQAhkUP//l6kYYOO+rSNFhnSp5PgYqXjCMWwWJpumu0A5yB3TLZTbQe6YbqHcDnLHdAv135E/fkCcZymFCcRgsD9P9FE/dRKfQibhTAaFJmK4PpGn/dRRfAqCOX4Yo5N3I0KtgZ86i880ZjqjkykvE99I+yCtohSXZG/oZ//4tHXD+5AHacTp5Yl+4L/rl/KJuIie7iSycvrxlfNT3kgfReKa04zLdbY60aw30ueRkDp66YQLJ29GxjqKLKYN/JyT7xZ/US9JLBP+paRkzBtpA6SBsrOMyr4Ek2X4dvBzSnwKwxA1Z3qHXzMSTnzKzX6E1X3IZDX46vewSRGiDZDGoR0IAkN5xjjvMXvmd72tl1Blsgb3VJ+vYb7D9z4ICTFjyXR9lINn5D2iBjTxc0I/gphhrS3x2m+lIrUOfuokPq2W5pjdVU/ZpVzTH/2pN5lHzUZrhWmN8PLJb1O/E4lURVE/zVM99P1V5evzfk5BGls5mYM3pTiN8V2K0gZ+TqmfqDa0BqXs7jzg1E+9y7xxGYmas4Sot6ZYGcHHvk39ViS8VKaI53zko1KOoTj6U2+vzxtz/hqPcZ+he+YjeW993mIVOXN+/eqBs5/hrf0hVuQFo8x1qb7Uoi7N6O/y2gWSOxjguimX8CTa/ZQ30kb7Q2TpJY7zqT/lrIfITT7TlvIsPeoFFbMiRFshLYd5P+aOhpZ+Ns93y8vLlpCKVTvzkdzXn7T6HS4HpQxRO/pT5S39+RUZpwe5YboDoh3kjukWyu0gd2wKS78pCOK43nLA1QAAAABJRU5ErkJggg==" alt="扫码打开独练下载页" width="118" height="118">
+      <div><b>扫码在手机上打开</b><span>用手机相机或微信扫一扫，直接在手机上安装最新版。</span></div>
+    </div>
   <section>
     <h2>本版更新</h2>
     <div class="card">
@@ -152,6 +161,7 @@ function copyText(text){
     t.select();try{document.execCommand('copy')}catch(e){}document.body.removeChild(t);
   }
 }
+(function(){var sc=location.search||'';var dl=document.getElementById('dl');if(dl&&sc){dl.href='Duolian-V1.5.apk'+sc;}})();
 </script>
 </body>
 </html>
