@@ -23,7 +23,7 @@ data class OutdoorLive(val running: Boolean = false, val daily: Boolean = false,
     val run: OutdoorRun? = null, val signal: OutdoorSignal = OutdoorSignal.IDLE, val error: String? = null,
     val speedMps: Double? = null, val accuracy: Float? = null, val busy: Boolean = false,
     val commandId: Long = 0, val stationary: Boolean = false, val filteredFixes: Int = 0,
-    val stepReadAt: Long? = null, val fixAgeMs: Long? = null)
+    val stepReadAt: Long? = null, val fixAgeMs: Long? = null, val mapPosition: RoutePoint? = null)
 
 /** Foreground session tracking; no boot receiver, silent GPS restart or always-on location. */
 class OutdoorService : Service(), SensorEventListener, LocationListener {
@@ -247,7 +247,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         live.value = OutdoorLive(!stopped, daily, recorder.run, recorder.signal, error,
             recorder.speedMps, recorder.accuracy, commandId = commandId, stationary = recorder.stationary,
             filteredFixes = recorder.filteredFixes, stepReadAt = stepReadAt.takeIf { registered },
-            fixAgeMs = recorder.lastFixTick?.let { (tick() - it).coerceAtLeast(0) })
+            fixAgeMs = recorder.lastFixTick?.let { (tick() - it).coerceAtLeast(0) },mapPosition = recorder.mapPosition)
     }
     private fun notification(): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java)

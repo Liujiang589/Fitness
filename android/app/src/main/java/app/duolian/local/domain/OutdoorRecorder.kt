@@ -26,6 +26,8 @@ class OutdoorRecorder {
         private set
     var filteredFixes: Int = 0
         private set
+    var mapPosition: RoutePoint? = null
+        private set
     private val speedFilter = OutdoorSpeedFilter()
     private var tickAt: Long? = null
     private var startedTick = 0L
@@ -142,6 +144,7 @@ class OutdoorRecorder {
         if (still && anchor != null && anchor.segment == p.segment) {
             stationary = true; previousFix = p; lastFixAt = fixTick; accuracy = precision; broken = false
             speedMps = speedFilter.add(0.0, fixTick, stationary = true); signal = OutdoorSignal.GOOD
+            mapPosition = OutdoorMapPosition.next(mapPosition ?: anchor,p,true)
             return
         }
         // After a long stop or lost fixes, resume a separate segment instead of drawing a shortcut.
@@ -160,13 +163,14 @@ class OutdoorRecorder {
         val candidate = groundSpeed ?: if (moved) OutdoorSpeed.metersPerSecond(r.kind, routeAnchor, speedPoint, null) else null
         speedMps = speedFilter.add(candidate, fixTick, still)
         stationary = still
+        mapPosition = OutdoorMapPosition.next(mapPosition,speedPoint,still)
         previousFix = speedPoint; broken = false; lastFixAt = fixTick; accuracy = precision
         signal = OutdoorSignal.GOOD
     }
 
     private fun disconnect() {
         if (!broken) run = run?.copy(segment = run!!.segment + 1)
-        broken = true; previousFix = null; speedMps = null; accuracy = null; stationary = false; speedFilter.reset()
+        broken = true; previousFix = null; speedMps = null; accuracy = null; stationary = false; mapPosition = null; speedFilter.reset()
     }
     private fun resetFixes() {
         disconnect(); lastFixAt = null; lastSampleAt = null

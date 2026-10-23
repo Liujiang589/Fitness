@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.duolian.local.domain.RoutePoint
+import app.duolian.local.domain.OutdoorMath
 import com.amap.api.maps.*
 import com.amap.api.maps.model.*
 import kotlinx.coroutines.delay
@@ -44,7 +45,7 @@ private object StreetMapConsent {
     }
 }
 
-@Composable internal fun StreetRouteMap(points: List<RoutePoint>, tracking: Boolean) {
+@Composable internal fun StreetRouteMap(points: List<RoutePoint>, tracking: Boolean, currentPosition: RoutePoint? = null) {
     val context = LocalContext.current
     val agreed by remember { StreetMapConsent.flow(context) }.collectAsStateWithLifecycle()
     var consentDialog by remember { mutableStateOf(false) }
@@ -76,7 +77,7 @@ private object StreetMapConsent {
         else -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             // Release the inline renderer while the fullscreen renderer is displayed.
             if (!expanded) key(retry) {
-                NativeStreetMap(points, tracking, Modifier.fillMaxWidth().height(310.dp)) { retry++ }
+                NativeStreetMap(points, tracking, Modifier.fillMaxWidth().height(310.dp),currentPosition) { retry++ }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("高德地图 · ${when { points.isEmpty() -> "开始运动后显示当前位置"; tracking -> "绿色路线随运动延伸"; else -> "已保存的运动路线" }}",
@@ -94,7 +95,7 @@ private object StreetMapConsent {
                     TextButton(onClick = { expanded = false }) { Text("‹ 返回运动记录") }
                     Text("运动路线", style = MaterialTheme.typography.titleMedium)
                 }
-                key(retry) { NativeStreetMap(points, tracking, Modifier.fillMaxSize()) { retry++ } }
+                key(retry) { NativeStreetMap(points, tracking, Modifier.fillMaxSize(),currentPosition) { retry++ } }
             }
         }
     }
@@ -110,7 +111,7 @@ private object StreetMapConsent {
 
 /** Own every native resource in one composition; do not use the SDK's separate location client. */
 @Composable private fun NativeStreetMap(points: List<RoutePoint>, tracking: Boolean,
-    modifier: Modifier, retry: () -> Unit) {
+    modifier: Modifier, currentPosition: RoutePoint?, retry: () -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var loaded by remember { mutableStateOf(false) }
@@ -144,9 +145,9 @@ private object StreetMapConsent {
         delay(20000)
         if (!loaded) slow = true
     }
-    LaunchedEffect(controller, points, tracking, follow, loaded, fitRequest) {
+    LaunchedEffect(controller, points, currentPosition, tracking, follow, loaded, fitRequest) {
         if (loaded) slow = false
-        if (controller != null) runCatching { controller.render(points, tracking, follow, fitRequest * 2 + if (loaded) 1 else 0) }
+        if (controller != null) runCatching { controller.render(points, tracking, follow, fitRequest * 2 + if (loaded) 1 else 0,currentPosition) }
             .onFailure { error = true }
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -191,6 +192,8 @@ private class StreetMapController(context: Context) {
     private val lines = mutableMapOf<Int, Polyline>()
     private var start: Marker? = null
     private var end: Marker? = null
+    private var precisionCircle: Circle? = null
+    private var lastCameraPoint: RoutePoint? = null
     private var lastPoints: List<RoutePoint>? = null
     private var previousFit = -1
     private var previousCount = -1
@@ -213,7 +216,7 @@ private class StreetMapController(context: Context) {
     fun pause() { if (!destroyed && resumed) { view.onPause(); resumed = false } }
     fun destroy() { if (!destroyed) { pause(); view.onDestroy(); destroyed = true; converted.clear(); lines.clear() } }
 
-    fun render(points: List<RoutePoint>, tracking: Boolean, follow: Boolean, fitRequest: Int) {
+    fun render(points: List<RoutePoint>, tracking: Boolean, follow: Boolean, fitRequest: Int, currentPosition: RoutePoint?) {
         if (destroyed || points.isEmpty()) return
         val changed = lastPoints != points
         if (changed) {
@@ -247,11 +250,24 @@ private class StreetMapController(context: Context) {
             end?.setIcon(BitmapDescriptorFactory.defaultMarker(if (tracking) BitmapDescriptorFactory.HUE_AZURE else BitmapDescriptorFactory.HUE_RED))
             wasTracking = tracking
         }
-        if (follow && tracking && (previousCount != points.size || previousFit != fitRequest)) {
-            val latest = converted.getValue(points.last())
+        val markerPoint=currentPosition.takeIf { tracking } ?: points.last()
+        val markerPosition=if(markerPoint==points.last()) converted.getValue(points.last()) else
+            converter.coord(LatLng(markerPoint.latitude,markerPoint.longitude)).convert()
+        end?.position=markerPosition
+        end?.title=if(!tracking)"终点" else if(currentPosition!=null)"最近定位" else "最近路线点"
+        if(tracking && currentPosition!=null) {
+            val circle=precisionCircle
+            if(circle==null)precisionCircle=map.addCircle(CircleOptions().center(markerPosition).radius(currentPosition.accuracy.toDouble())
+                .strokeWidth(1.5f).strokeColor(0x66508D89).fillColor(0x18508D89))
+            else { circle.center=markerPosition;circle.radius=currentPosition.accuracy.toDouble() }
+        } else { precisionCircle?.remove();precisionCircle=null }
+        val cameraMoved=lastCameraPoint?.let { OutdoorMath.distance(it,markerPoint)>=2.0 } ?: true
+        if (follow && tracking && (cameraMoved || previousFit != fitRequest)) {
+            val latest = markerPosition
             if (previousCount < 0 || previousFit != fitRequest)
                 map.animateCamera(CameraUpdateFactory.newLatLngZoom(latest, 17f))
             else map.animateCamera(CameraUpdateFactory.changeLatLng(latest))
+            lastCameraPoint=markerPoint
         } else if (previousFit != fitRequest || previousCount < 0) {
             if (points.size == 1) map.moveCamera(CameraUpdateFactory.newLatLngZoom(converted.getValue(points.first()), 17f))
             else {

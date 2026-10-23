@@ -4,10 +4,12 @@ import kotlin.math.*
 
 data class AnatomyCamera(val angle: Float, val left: Float, val right: Float, val bottom: Float, val top: Float) {
     private val yaw = angle * PI.toFloat()/180f
-    val direction = MotionPoint(sin(yaw),0f,-cos(yaw))
+    private val elevation=.28f
+    private val horizontalDirection=MotionPoint(sin(yaw),0f,-cos(yaw))
+    val direction = horizontalDirection*cos(elevation)+MotionPoint(0f,sin(elevation))
     fun depth(p: MotionPoint) = p.dot(direction)
     private fun horizontal(p: MotionPoint) = p.x*cos(yaw)+p.z*sin(yaw)
-    private fun vertical(p: MotionPoint) = p.y+depth(p)*.12f
+    private fun vertical(p: MotionPoint) = p.y*cos(elevation)-p.dot(horizontalDirection)*sin(elevation)
     fun point(p: MotionPoint, width: Float, height: Float, padding: Float, header: Float): Pair<Float,Float> {
         val scale=min((width-padding*2)/(right-left),(height-padding*2-header)/(top-bottom)).coerceAtLeast(.1f)
         val x=width*.5f+(horizontal(p)-(left+right)*.5f)*scale

@@ -98,7 +98,8 @@ import app.duolian.local.outdoor.OutdoorLive
             style = MaterialTheme.typography.bodySmall)
     }
     Panel {
-        StreetRouteMap(run.points, tracking = recording)
+        StreetRouteMap(run.points, tracking = recording,
+            currentPosition=live.mapPosition.takeIf { recording && signal==OutdoorSignal.GOOD && (live.fixAgeMs ?: Long.MAX_VALUE)<=10000 })
     }
     Panel {
         DetailDisclosure("配速、步数与定位详情") {

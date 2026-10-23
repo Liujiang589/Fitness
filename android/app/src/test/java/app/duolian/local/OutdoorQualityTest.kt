@@ -5,6 +5,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class OutdoorQualityTest {
+    @Test fun mapMarkerSmoothingIsBoundedAndNeverUsedAsDistanceInput() {
+        val a=RoutePoint(30.0,120.0,1000,5f)
+        val b=a.copy(latitude=30.0001,time=3000)
+        val m=OutdoorMapPosition.next(a,b,false)
+        assertTrue(m.latitude>a.latitude && m.latitude<b.latitude)
+        assertEquals(b.time,m.time)
+        assertEquals(b,OutdoorMapPosition.next(null,b,false))
+    }
+    @Test fun stationaryMarkerStaysFixedAndNewSegmentsResetSmoothing() {
+        val a=RoutePoint(30.0,120.0,1000,5f)
+        val b=a.copy(latitude=30.0001,time=3000)
+        assertEquals(a.latitude,OutdoorMapPosition.next(a,b,true).latitude,.0)
+        val next=b.copy(segment=1)
+        assertEquals(next,OutdoorMapPosition.next(a,next,true))
+    }
     private val epoch=1_700_000_000_000L
     private fun recorder()=OutdoorRecorder().apply { start(OutdoorKind.WALK,epoch,1000) }
     private fun OutdoorRecorder.sample(t: Long, meters: Double, speed: Double? = 1.2, accuracy: Float = 5f,

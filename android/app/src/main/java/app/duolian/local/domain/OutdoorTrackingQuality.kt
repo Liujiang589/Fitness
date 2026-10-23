@@ -30,6 +30,18 @@ object OutdoorTrackingQuality {
         max(4.0, (before.accuracy + current.accuracy) * .65)
 }
 
+/** Smooth the on-screen marker only; never feed these interpolated coordinates back into distance/GPX. */
+object OutdoorMapPosition {
+    fun next(previous: RoutePoint?, current: RoutePoint, stationary: Boolean): RoutePoint {
+        if(previous==null || previous.segment!=current.segment || current.time-previous.time>15000) return current
+        if(current.time<=previous.time)return previous
+        if(stationary)return previous.copy(time=current.time,accuracy=current.accuracy)
+        val alpha=1-exp(-(current.time-previous.time)/1500.0)
+        return current.copy(latitude=previous.latitude+(current.latitude-previous.latitude)*alpha,
+            longitude=previous.longitude+(current.longitude-previous.longitude)*alpha)
+    }
+}
+
 /** Median rejects one-off spikes; a time-based low pass reduces pace flicker. Units remain m/s. */
 class OutdoorSpeedFilter {
     private val samples = ArrayDeque<Pair<Long, Double>>()
