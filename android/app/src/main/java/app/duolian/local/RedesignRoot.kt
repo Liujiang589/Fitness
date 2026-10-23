@@ -50,6 +50,8 @@ private data class Confirmation(val title:String,val action:()->Unit)
     val pending by vm.pendingImport.collectAsStateWithLifecycle()
     val hiitRuns by vm.hiitRuns.collectAsStateWithLifecycle()
     val autoBackupAt by vm.autoBackupAt.collectAsStateWithLifecycle()
+    val updater: AppUpdateViewModel = viewModel()
+    val updateState by updater.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
@@ -70,13 +72,6 @@ private data class Confirmation(val title:String,val action:()->Unit)
     val recovery=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(vm::exportRecovery)}
     val import=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::inspectImport)}
     val auto=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(vm::exportAutoBackup)}
-    val photoPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
-        val current=detail
-        if(uri!=null&&current!=null){
-            runCatching{context.contentResolver.takePersistableUriPermission(uri,android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)}
-            val updated=current.copy(mediaUri=uri.toString());detail=updated;vm.act{vm.repo.saveExercise(updated)}
-        }
-    }
     val a=ScreenActions(
         plan={editPlan=it;planForm=true},exercise={editExercise=it;exerciseForm=true},detail={detail=it},
         auxiliary={auxiliary=it;editFood=null;editBody=null},body={editBody=it;auxiliary="body"},
@@ -104,25 +99,18 @@ private data class Confirmation(val title:String,val action:()->Unit)
             1->ToolsPage(sessions,vm,hiitRuns)
             2->ExercisePage(exercises,a)
             3->HistoryPage(sessions,exercises,plans,body,food,vm,a)
-            else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("Duolian-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("Duolian-before-import.json")},{auto.launch("Duolian-auto-${LocalDate.now()}.json")},autoBackupAt)
+            else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("Duolian-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("Duolian-before-import.json")},{auto.launch("Duolian-auto-${LocalDate.now()}.json")},autoBackupAt,updateState){if(updateState.downloading || updateState.file!=null)updater.open() else updater.check(true)}
         }
     }}
+    AppUpdateHost(updater, updateState, canPrompt = ready && sessions.none { it.endedAt == null } &&
+        !exerciseForm && !planForm && detail == null && auxiliary == null && confirm == null && pending == null)
     if(exerciseForm)ExerciseForm(editExercise,{exerciseForm=false}){x->vm.act{vm.repo.saveExercise(x)}}
     if(planForm)PlanForm(editPlan,exercises,{planForm=false}){x->vm.act{vm.repo.savePlan(x)}}
-    detail?.let{e->AlertDialog(onDismissRequest={detail=null},title={Text(e.name)},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
-        if(e.mediaUri!=null)ExercisePhoto(e.mediaUri!!,Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(14.dp)))
-        else ExerciseArt(e.muscle,Modifier.fillMaxWidth().height(140.dp))
-        Text("${e.muscle} · ${e.equipment}"+(if(e.favorite)" · 已收藏" else ""),color=Blue)
-        Text(e.notes.ifBlank{"可编辑补充你的动作要点。"})
-        Text(if(e.mediaUri==null)"分类示意图；可添加自己的动作照片，也可以继续不配图。" else "已使用你选择的照片；图片保存在本机。",color=Muted,style=MaterialTheme.typography.bodySmall)
-        Text("默认重量 ${kg(e.defaultGrams)} kg",fontWeight=FontWeight.SemiBold)
-        Row{
-            TextButton(onClick={photoPicker.launch(arrayOf("image/*"))}){Text(if(e.mediaUri==null)"添加图片" else "更换图片")}
-            if(e.mediaUri!=null)TextButton(onClick={val updated=e.copy(mediaUri=null);detail=updated;vm.act{vm.repo.saveExercise(updated)}}){Text("移除图片",color=Muted)}
-            TextButton(onClick={val updated=e.copy(favorite=!e.favorite);detail=updated;vm.act{vm.repo.saveExercise(updated)}}){Text(if(e.favorite)"取消收藏" else "收藏")}
-        }
-        TextButton(onClick={detail=null;ask("删除「${e.name}」？计划引用的动作需先从计划移除。"){vm.act{vm.repo.deleteExercise(e.id)}}}){Text("删除动作",color=MaterialTheme.colorScheme.error)}
-    }},confirmButton={TextButton(onClick={detail=null;a.exercise(e)}){Text("编辑动作")}},dismissButton={TextButton(onClick={detail=null}){Text("关闭")}})}
+    detail?.let { e -> ExerciseGuideDialog(e,busy,
+        dismiss={detail=null},
+        edit={detail=null;a.exercise(e)},
+        favorite={val updated=e.copy(favorite=!e.favorite);detail=updated;vm.act{vm.repo.saveExercise(updated)}},
+        delete={detail=null;ask("删除「${e.name}」？计划引用的动作需先从计划移除。") {vm.act{vm.repo.deleteExercise(e.id)}}}) }
     confirm?.let{c->AlertDialog(onDismissRequest={confirm=null},title={Text(c.title)},confirmButton={TextButton(enabled=!busy,onClick={c.action();confirm=null}){Text("确认")}},dismissButton={TextButton(onClick={confirm=null}){Text("取消")}})}
     pending?.let{b->AlertDialog(onDismissRequest={vm.pendingImport.value=null},title={Text("确认替换全部本地数据？")},text={Text("${b.exercises.size} 个动作、${b.plans.size} 份计划、${b.sessions.size} 场训练。现有数据会先保存为恢复备份。")},confirmButton={TextButton(enabled=!busy,onClick=vm::confirmImport){Text("备份并替换")}},dismissButton={TextButton(onClick={vm.pendingImport.value=null}){Text("取消")}})}
     val kind=auxiliary?.substringBefore(':');val auxDate=auxiliary?.split(':')?.let{if(it.size>2)it[2] else if(kind=="water"&&it.size>1)it[1] else LocalDate.now().toString()}?:LocalDate.now().toString()
@@ -136,7 +124,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
     }
 }
 
-@Composable private fun ProfilePage(body:List<Body>,sessions:List<Session>,rest:Int,busy:Boolean,vm:MainViewModel,a:ScreenActions,export:()->Unit,import:()->Unit,recovery:()->Unit,autoBackup:()->Unit,autoBackupAt:Long?){
+@Composable private fun ProfilePage(body:List<Body>,sessions:List<Session>,rest:Int,busy:Boolean,vm:MainViewModel,a:ScreenActions,export:()->Unit,import:()->Unit,recovery:()->Unit,autoBackup:()->Unit,autoBackupAt:Long?,updateState:AppUpdateState,checkUpdate:()->Unit){
     val finished = sessions.filter{it.endedAt!=null}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(15.dp)){
         item{Panel(color=Night){
@@ -179,8 +167,15 @@ private data class Confirmation(val title:String,val action:()->Unit)
         }}
         item{Section("关于")}
         item{GroupCard{
-            IconSettingRow(8,Muted,"独练 · 本地训练手记","不联网、无账号，卸载即删除",
+            IconSettingRow(8,Muted,"独练 · 本地训练手记","训练数据保存在本机，无需账号",
                 trailing="V${BuildConfig.VERSION_NAME}")
+            HorizontalDivider(color=Page)
+            IconSettingRow(8,Blue,"检查更新",when {
+                updateState.downloading -> "更新正在下载，点击查看进度"
+                updateState.file!=null -> "新版已下载，点击安装"
+                updateState.checking -> "正在检查新版本…"
+                else -> "当前使用同 Wi-Fi 更新服务"
+            },onClick=checkUpdate)
         }}
         item { AuthorContactCard() }
     }

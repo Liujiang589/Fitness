@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -111,7 +112,7 @@ internal class ScreenActions(
             }
         }
         if (plans.isEmpty()) item {
-            EmptyPanel("建立你的训练安排", "创建计划，选择动作，再设置每个动作的训练组数。")
+            EmptyPanel("建立你的训练安排", "点击“创建我的计划”或“＋ 新建”，自己选择动作和训练组数。")
         }
         items(plans, key = { it.id }) { p ->
             var menu by remember { mutableStateOf(false) }
@@ -170,12 +171,21 @@ internal class ScreenActions(
     var muscle by rememberSaveable { mutableStateOf("全部") }
     var equipment by rememberSaveable { mutableStateOf("全部") }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    var autoplay by rememberSaveable { mutableStateOf(true) }
     val filtered = exercises.filter {
         (query.isBlank() || it.name.contains(query, true) || it.muscle.contains(query, true) || it.equipment.contains(query, true)) &&
             (muscle == "全部" || it.muscle == muscle) && (equipment == "全部" || it.equipment == equipment) &&
             (!favoritesOnly || it.favorite)
     }.sortedWith(compareByDescending<Exercise> { it.favorite }.thenBy { it.name })
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val listState=rememberLazyListState()
+    val ids=remember(filtered){filtered.map{it.id}.toSet()}
+    val playingId by remember(listState,ids) { derivedStateOf {
+        val info=listState.layoutInfo
+        info.visibleItemsInfo.filter{(it.key as? String)?.let(ids::contains)==true}.maxByOrNull {
+            (minOf(it.offset+it.size,info.viewportEndOffset)-maxOf(it.offset,info.viewportStartOffset)).coerceAtLeast(0)
+        }?.key as? String
+    } }
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AppField(query, { query = it }, placeholder = "搜索动作、肌群或器械", modifier = Modifier.weight(1f))
@@ -191,39 +201,55 @@ internal class ScreenActions(
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly },
-                label = { Text("★ 我的收藏") })
+                label = { Text("★ 收藏") })
+            FilterChip(selected = autoplay, onClick = { autoplay = !autoplay }, label = { Text("动态预览") })
             (listOf("全部") + exercises.map { it.equipment }.distinct()).forEach { name ->
                 FilterChip(selected = equipment == name, onClick = { equipment = name },
                     label = { Text(if (name == "全部") "全部器械" else name) })
             }
         }
         Row(Modifier.padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (muscle == "全部") "全部动作" else muscle, fontWeight = FontWeight.Bold,
+            Text("看示范，再开始练", fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
             Text("${filtered.size} 个动作", color = Muted, style = MaterialTheme.typography.labelMedium)
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (query.isBlank() && muscle == "全部" && !favoritesOnly && equipment == "全部") item {
-                LifestyleBanner(R.drawable.training_daylight, "找到适合\n自己的动作", "肌群示意帮你定位，动作细节随时查看。")
-            }
+        LazyColumn(state=listState,modifier=Modifier.weight(1f),
+            contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=24.dp),
+            verticalArrangement=Arrangement.spacedBy(16.dp)) {
             if (filtered.isEmpty()) item { EmptyPanel("没有匹配的动作", "试试其他关键词，或切换肌群和器械筛选。") }
-            items(filtered, key = { it.id }) { exercise ->
-                Surface(onClick = { a.detail(exercise) }, color = Color.White,
-                    shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Hairline)) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(74.dp).clip(RoundedCornerShape(16.dp)).background(Page)) {
-                            if (exercise.mediaUri != null) ExercisePhoto(exercise.mediaUri, Modifier.fillMaxSize())
-                            else ExerciseArt(exercise.muscle, Modifier.fillMaxSize().padding(4.dp))
+            items(filtered,key={it.id}) { exercise ->
+                val guide=remember(exercise.name,exercise.equipment){ExerciseGuides.find(exercise)}
+                val playing=autoplay&&playingId==exercise.id
+                Surface(onClick={a.detail(exercise)},color=Color.White,shape=RoundedCornerShape(24.dp),
+                    border=BorderStroke(1.dp,Hairline)) {
+                    Column {
+                        Box(Modifier.fillMaxWidth().background(Color(0xFFEDF0E9))) {
+                            if(guide!=null) {
+                                ExerciseMotionPreview(guide,playing,Modifier.fillMaxWidth().aspectRatio(1.7f))
+                                Surface(Modifier.align(Alignment.TopStart).padding(13.dp),
+                                    shape=RoundedCornerShape(9.dp),color=Color.White.copy(alpha=.9f)) {
+                                    Text(if(playing)"▶ 正在演示" else "内置动态示范",
+                                        Modifier.padding(horizontal=9.dp,vertical=5.dp),color=Blue,
+                                        style=MaterialTheme.typography.labelSmall)
+                                }
+                            } else {
+                                ExerciseArt(exercise.muscle,Modifier.fillMaxWidth().height(142.dp).padding(12.dp))
+                                Text("自定义动作",Modifier.align(Alignment.TopStart).padding(14.dp),color=Muted,
+                                    style=MaterialTheme.typography.labelSmall)
+                            }
                         }
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text((if (exercise.favorite) "★ " else "") + exercise.name,
-                                fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
-                            Text("${exercise.muscle}  /  ${exercise.equipment}", color = Muted,
-                                style = MaterialTheme.typography.bodySmall)
+                        Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically,
+                            horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                                Text((if(exercise.favorite)"★ " else "")+exercise.name,
+                                    fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+                                Text("${exercise.muscle} · ${exercise.equipment}",color=Muted,
+                                    style=MaterialTheme.typography.bodySmall)
+                                Text(if(guide!=null)"动态示范 · 分解要领 · 常见错误" else "个人要点 · 暂无内置示范",
+                                    color=Blue,style=MaterialTheme.typography.labelSmall)
+                            }
+                            Text("查看 ›",color=Blue,style=MaterialTheme.typography.labelLarge)
                         }
-                        Text("↗", color = Blue, fontSize = 22.sp)
                     }
                 }
             }

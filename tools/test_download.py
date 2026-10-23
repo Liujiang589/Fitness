@@ -20,6 +20,7 @@ class DownloadTest(unittest.TestCase):
         (cls.root / "android/app").mkdir(parents=True)
         (cls.root / "tools").mkdir()
         (cls.root / "tools/download_page.html").write_bytes((ROOT / "tools/download_page.html").read_bytes())
+        (cls.root / "tools/update-notes.json").write_text(json.dumps({"0.11.1": ["改进训练体验"]}), encoding="utf-8")
         (cls.root / "android/app/build.gradle.kts").write_text('versionName = "0.11.1"\nversionCode = 14\n')
         cls.apk = b"PK\x03\x04" + bytes(range(256)) * 50
         (cls.root / "Duolian-0.11.1-debug.apk").write_bytes(cls.apk)
@@ -63,7 +64,7 @@ class DownloadTest(unittest.TestCase):
             self.assertEqual(416, context.exception.code)
 
     def test_only_release_routes_are_exposed(self):
-        for path in ["/README.md", "/android/.local-signing/duolian-debug.keystore", "/../README.md", "/%2e%2e/README.md", "/tools/"]:
+        for path in ["/README.md", "/android/.local-signing/duolian-debug.keystore", "/../README.md", "/%2e%2e/README.md", "/tools/", "/tools/update-notes.json"]:
             with self.assertRaises(urllib.error.HTTPError) as context:
                 self.request(path)
             self.assertEqual(404, context.exception.code)
@@ -72,6 +73,9 @@ class DownloadTest(unittest.TestCase):
         with self.request("/latest.json") as response:
             manifest = json.load(response)
         self.assertEqual("0.11.1", manifest["version"])
+        self.assertEqual("app.duolian.local", manifest["packageName"])
+        self.assertEqual(26, manifest["minSdk"])
+        self.assertEqual(["改进训练体验"], manifest["releaseNotes"])
         self.assertEqual(hashlib.sha256(self.apk).hexdigest(), manifest["sha256"])
         with self.request("/latest.apk", method="HEAD") as response:
             self.assertEqual(str(len(self.apk)), response.headers["Content-Length"])
@@ -87,6 +91,27 @@ class DownloadTest(unittest.TestCase):
         self.assertEqual(image.width, image.height)
         self.assertEqual(255, image.getpixel((0, 0)))
         self.assertEqual(0, image.getpixel((45, 45)))
+
+    def test_changed_notes_are_loaded_without_restarting_server(self):
+        notes = self.root / "tools/update-notes.json"
+        original = notes.read_bytes()
+        try:
+            notes.write_text(json.dumps({"0.11.1": ["新的更新说明"]}), encoding="utf-8")
+            with self.request("/latest.json") as response:
+                self.assertEqual(["新的更新说明"], json.load(response)["releaseNotes"])
+        finally:
+            notes.write_bytes(original)
+
+    def test_invalid_notes_index_returns_unavailable_instead_of_invalid_metadata(self):
+        notes = self.root / "tools/update-notes.json"
+        original = notes.read_bytes()
+        try:
+            notes.write_text("[]", encoding="utf-8")
+            with self.assertRaises(urllib.error.HTTPError) as context:
+                self.request("/latest.json")
+            self.assertEqual(503, context.exception.code)
+        finally:
+            notes.write_bytes(original)
 
     def test_public_and_wildcard_binds_are_rejected(self):
         for value in ["0.0.0.0", "8.8.8.8", "::"]:

@@ -41,7 +41,15 @@ def release_info(root=ROOT):
     stat = apk.stat()
     if not 0 < stat.st_size < 200 * 1024 * 1024:
         raise ValueError("Unexpected APK size")
+    notes_path = root / "tools/update-notes.json"
+    all_notes = json.loads(notes_path.read_text(encoding="utf-8")) if notes_path.is_file() else {}
+    if not isinstance(all_notes, dict):
+        raise ValueError("Invalid release notes index")
+    notes = all_notes.get(version, [])
+    if not isinstance(notes, list) or len(notes) > 12 or any(not isinstance(note, str) or not note.strip() or len(note) > 600 for note in notes):
+        raise ValueError("Invalid release notes")
     return dict(version=version, displayVersion=f"V{version}", versionCode=code, filename=apk.name, size=stat.st_size,
+                packageName="app.duolian.local", minSdk=26, releaseNotes=notes,
                 sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), apk=apk)
 
 
@@ -83,7 +91,8 @@ def make_server(bind, port, output, root=ROOT):
         nonlocal cached, signature
         # A running server follows a newly published version, without changing its URL.
         build_stat = (root / "android/app/build.gradle.kts").stat()
-        stamp = (build_stat.st_mtime_ns, build_stat.st_size)
+        notes_path = root / "tools/update-notes.json"
+        stamp = (build_stat.st_mtime_ns, build_stat.st_size, notes_path.stat().st_mtime_ns if notes_path.is_file() else 0)
         with lock:
             if cached is None or stamp != signature or cached["apk"].stat().st_mtime_ns != cached["mtime"]:
                 updated = release_info(root)

@@ -50,7 +50,7 @@ class Repository(private val db: LocalDatabase) {
             }
             val seed = basic + extra
             seed.forEach { saveExercise(it) }
-            savePlan(Plan("fullbody", "全身基础计划", listOf("bench", "squat", "pulldown")))
+            // Keep the exercise library available, but let new users choose their own first plan.
             dao.put(MetaRow("initialized", "1"))
         }
     }

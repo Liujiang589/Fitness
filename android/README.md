@@ -1,10 +1,24 @@
-﻿# 独练 Android 工程（V1.2）
+﻿# 独练 Android 工程（V1.5）
 
 包名 `app.duolian.local`，Kotlin + Jetpack Compose + Room，支持 Android 8.0（API 26）及以上。
 
-## V1.2 版本命名
+## V1.5 应用内更新
 
-versionName为1.2，关于页展示V1.2；内部versionCode16，继续使用现有签名。对外文件为Duolian-V1.2.apk。规则与验证见[VERSIONING.md](../docs/VERSIONING.md)、[V1_2_VERIFICATION.md](../docs/V1_2_VERIFICATION.md)。
+新增AppUpdates/UpdateTransport/UpdateInstaller/AppUpdateViewModel/AppUpdateUi，前台检查、手动检查、下载校验和系统安装流程独立于训练读写。网络配置仅为当前局域网IP放行HTTP，FileProvider只分享更新缓存。新增13项JVM测试和4项设备测试，后者仅编译。[使用部署](../docs/APP_UPDATES.md)、[验证记录](../docs/V1_5_VERIFICATION.md)。
+
+## V1.4 首次启动
+
+Repository初始化仅种入动作库，不再自动创建基础计划。训练页进入自主创建流程；既有初始化标记和用户数据保持原样。StorageTest新增首次启动、重复初始化、自选训练及旧计划保留覆盖，设备测试仅编译。[验证记录](../docs/V1_4_VERIFICATION.md)。
+
+## V1.3 动作动态示范
+
+新增`domain/ExerciseGuides.kt`（40个动作的要领与精确匹配）、`domain/MotionEngine.kt`（关节、逆运动学、器械与动作轨迹）和`ExerciseMotion.kt`（原生Canvas播放器及教程详情）。动作列表只给主要可见卡片启动预览，帧循环跟随RESUMED生命周期；支持暂停、慢放、拖动、分阶段、视角和放大。
+
+新增9项JVM测试，合计131项通过；导出真实引擎姿态供`tools/render_motion_previews.py`检查。新增ExerciseMotionUiTest仅编译，未在设备执行；无数据库迁移。详见[动作改版说明](../docs/V1_3_ACTIONS.md)、[验证记录](../docs/V1_3_VERIFICATION.md)。
+
+## 当前版本命名
+
+versionName为1.5，关于页展示V1.5；内部versionCode19，继续使用现有签名。对外文件为Duolian-V1.5.apk。规则见[VERSIONING.md](../docs/VERSIONING.md)。
 
 ## 0.12.0 信息分层与高清配图
 

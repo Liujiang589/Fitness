@@ -12,8 +12,9 @@ android {
         applicationId = "app.duolian.local"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.2"
+        versionCode = 19
+        versionName = "1.5"
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"http://192.168.224.217:8765/latest.json\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }

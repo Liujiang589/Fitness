@@ -137,7 +137,7 @@ import java.time.LocalDate
                 Text(plan?.name ?: "动一动，\n感觉更好。", color = Ink,
                     style = MaterialTheme.typography.headlineLarge, maxLines = 3,
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(.74f))
-                Text(if (plan == null) "按自己的节奏，开始一次训练" else "计划已就绪，跟着动作逐组完成",
+                Text(if (plan == null) "先选择想练的动作，安排自己的第一场训练" else "计划已就绪，跟着动作逐组完成",
                     color = Ink, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { if (plan == null) createPlan() else vm.act { vm.repo.start(plan.id) } },
