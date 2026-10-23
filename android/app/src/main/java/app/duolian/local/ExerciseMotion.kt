@@ -34,7 +34,6 @@ import app.duolian.local.domain.*
 import kotlin.math.*
 
 private val DemoBackground = Color(0xFFEDF0E9)
-private val DemoMuscle = Color(0xFFD87554)
 
 @Composable private fun animationsEnabled(): Boolean {
     val context = LocalContext.current
@@ -55,177 +54,32 @@ private val DemoMuscle = Color(0xFFD87554)
         if (playing) owner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var previous = 0L
             while (true) withFrameNanos { current ->
-                if (previous != 0L) {
+                if (previous != 0L && current-previous>=30_000_000L) {
                     val seconds = ((current-previous)/1_000_000_000f).coerceIn(0f,.06f)
                     progress.floatValue = (progress.floatValue + seconds*speed/5.5f) % 1f
-                }
-                previous=current
+                    previous=current
+                } else if(previous==0L) previous=current
             }
         }
     }
 }
 
-/** Native vector scene: no image upload, no remote media, no rescaled low-resolution GIF. */
+/** Articulated, shaded anatomical surface; one native triangle batch and optional movement paths. */
 @Composable internal fun ExerciseMotionCanvas(guide: ExerciseGuide, progress: State<Float>,
-    modifier: Modifier = Modifier, angle: Float = 32f) {
+    modifier: Modifier = Modifier, angle: Float = 55f, detailed: Boolean = true, showTrajectory: Boolean = true) {
+    val camera=remember(guide.kind,angle) { AnatomyCamera.forMotion(guide.kind,angle) }
+    val paths=remember(guide.kind) { AnatomyMesh.trajectories(guide.kind) }
     Box(modifier.background(DemoBackground).graphicsLayer().semantics {
-        contentDescription = "${guide.name}动态示范，主要肌群：${guide.focus}"
+        contentDescription = "${guide.name}肌肉分区动态示范，主要肌群：${guide.focus}"
     }.drawWithCache {
-        val pose = MotionEngine.sample(guide.kind, MotionEngine.amount(progress.value))
-        onDrawBehind { drawExercisePose(pose, guide, angle) }
+        anatomyScene(guide,progress.value,camera,paths,detailed,showTrajectory)
     })
 }
 
 @Composable internal fun ExerciseMotionPreview(guide:ExerciseGuide, playing:Boolean, modifier:Modifier=Modifier) {
     val enabled=animationsEnabled()
     val progress=rememberMotionClock("preview-${guide.key}",playing&&enabled)
-    ExerciseMotionCanvas(guide,progress,modifier)
-}
-
-private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, angle: Float) {
-    val yaw=angle*PI.toFloat()/180f
-    val scale=min(size.width/3.05f,size.height/2.62f)
-    fun project(v:MotionPoint)=Offset(size.width*.49f+(v.x*cos(yaw)+v.z*sin(yaw))*scale,
-        size.height*.93f-(v.y-(-v.x*sin(yaw)+v.z*cos(yaw))*.10f)*scale)
-    fun depth(v:MotionPoint)=-v.x*sin(yaw)+v.z*cos(yaw)
-    val metal=Color(0xFF69746C);val steel=Color(0xFFABB4A7)
-    val body=Color(0xFFC7CDC3);val outline=Color(0xFF879184)
-    val floor=project(MotionPoint(0f,0f))
-    drawOval(Color(0xFF59654F).copy(alpha=.13f),topLeft=Offset(floor.x-scale*.79f,floor.y-scale*.10f),
-        size=Size(scale*1.58f,scale*.17f))
-    for(i in -3..3) {
-        drawLine(Color(0xFFDDE2D7),project(MotionPoint(i*.4f,0f,-1.1f)),
-            project(MotionPoint(i*.4f,0f,1.1f)),1f)
-        drawLine(Color(0xFFDDE2D7),project(MotionPoint(-1.3f,0f,i*.35f)),
-            project(MotionPoint(1.3f,0f,i*.35f)),1f)
-    }
-    fun rod(a:MotionPoint,b:MotionPoint,width:Float,color:Color,edge:Boolean=true) {
-        val start=project(a);val end=project(b);val line=end-start
-        val normal=Offset(-line.y,line.x).let { if(it.getDistance()<.001f)Offset(1f,0f) else it/it.getDistance() }
-        val w=width*scale
-        if(edge)drawLine(color.copy(red=color.red*.70f,green=color.green*.70f,blue=color.blue*.70f),
-            start,end,w+1.1f,StrokeCap.Round)
-        val mid=(start+end)/2f
-        drawLine(Brush.linearGradient(listOf(color,Color.White.copy(alpha=.9f),color),
-            mid-normal*w*.58f,mid+normal*w*.58f),start,end,w,StrokeCap.Round)
-    }
-    fun equipment(prop:MotionProp) {
-        val a=prop.a;val b=prop.b
-        when(prop.kind) {
-            MotionPropKind.MAT -> {
-                val pts=listOf(a+MotionPoint(0f,0f,-.55f),b+MotionPoint(0f,0f,-.55f),
-                    b+MotionPoint(0f,0f,.55f),a+MotionPoint(0f,0f,.55f)).map(::project)
-                val path=Path().apply { moveTo(pts[0].x,pts[0].y);pts.drop(1).forEach{lineTo(it.x,it.y)};close() }
-                drawPath(path,Color(0xFFC8D1BA))
-            }
-            MotionPropKind.BENCH -> {
-                rod(a.copy(y=.035f),a,.055f,steel);rod(b.copy(y=.035f),b,.055f,steel)
-                rod(a.copy(y=.035f,z=a.z-.32f),a.copy(y=.035f,z=a.z+.32f),.045f,metal)
-                rod(b.copy(y=.035f,z=b.z-.32f),b.copy(y=.035f,z=b.z+.32f),.045f,metal)
-                rod(a,b,.14f,Color(0xFF4F5C48))
-            }
-            MotionPropKind.RAIL -> rod(a,b,.045f,steel)
-            MotionPropKind.PAD,MotionPropKind.ROLLER -> rod(a,b,.13f,Color(0xFF536149))
-            MotionPropKind.CABLE -> {
-                val base=a.copy(y=.03f)
-                rod(base,a.copy(y=max(a.y+.15f,1.8f)),.045f,steel)
-                drawCircle(metal,.055f*scale,project(a))
-                drawLine(metal,project(a),project(b),max(1.4f,.013f*scale),StrokeCap.Round)
-            }
-            MotionPropKind.ROPE -> {
-                rod(a,b,.026f,Color(0xFF5F6352))
-                drawCircle(Color(0xFF3D4934),.04f*scale,project(b))
-            }
-            MotionPropKind.BAR -> rod(a,b,.035f,metal)
-            MotionPropKind.BARBELL, MotionPropKind.DUMBBELL -> {
-                rod(a,b,.025f,metal)
-                val axis=(b-a).unit()
-                val radius=if(prop.kind==MotionPropKind.BARBELL).22f else .125f
-                listOf(a+axis*.05f,b-axis*.05f).forEach { center ->
-                    val pt=project(center)
-                    drawOval(Color(0xFF34432E),Offset(pt.x-radius*scale*.30f,pt.y-radius*scale),
-                        Size(radius*scale*.60f,radius*scale*2))
-                    drawOval(Color(0xFF66814D),Offset(pt.x-radius*scale*.21f,pt.y-radius*scale*.86f),
-                        Size(radius*scale*.42f,radius*scale*1.72f))
-                    drawCircle(Color(0xFFB8C79F),max(1f,.023f*scale),pt)
-                }
-            }
-        }
-    }
-    pose.props.filter { it.kind !in listOf(MotionPropKind.DUMBBELL,MotionPropKind.BARBELL,MotionPropKind.BAR) }
-        .forEach(::equipment)
-    if(guide.kind==MotionKind.SQUAT)pose.props.filter{it.kind==MotionPropKind.BARBELL}.forEach(::equipment)
-    data class Layer(val z:Float,val draw:()->Unit)
-    val layers=mutableListOf<Layer>()
-    val muscle=guide.muscle
-    val highlights=guide.highlightedRegions
-    fun limb(a:MotionJoint,b:MotionJoint,width:Float,active:Boolean) {
-        val pa=pose[a];val pb=pose[b]
-        layers+=Layer(depth((pa+pb)*.5f)) {
-            rod(pa,pb,width,body)
-            if(active)rod(pa+(pb-pa)*.20f,pa+(pb-pa)*.70f,width*.64f,DemoMuscle,false)
-            drawCircle(outline,width*scale*.29f,project(pb))
-            drawCircle(Color(0xFFDCE0D6),width*scale*.20f,project(pb))
-        }
-    }
-    listOf(true,false).forEach { left ->
-        val shoulder=if(left)MotionJoint.SHOULDER_L else MotionJoint.SHOULDER_R
-        val elbow=if(left)MotionJoint.ELBOW_L else MotionJoint.ELBOW_R
-        val wrist=if(left)MotionJoint.WRIST_L else MotionJoint.WRIST_R
-        val hip=if(left)MotionJoint.HIP_L else MotionJoint.HIP_R
-        val knee=if(left)MotionJoint.KNEE_L else MotionJoint.KNEE_R
-        val ankle=if(left)MotionJoint.ANKLE_L else MotionJoint.ANKLE_R
-        val toe=if(left)MotionJoint.TOE_L else MotionJoint.TOE_R
-        limb(hip,knee,.15f,"腿部" in highlights)
-        limb(knee,ankle,.105f,"小腿" in highlights)
-        layers+=Layer(depth(pose[ankle])) { rod(pose[ankle],pose[toe],.085f,Color(0xFF56634E)) }
-        limb(shoulder,elbow,.105f,muscle=="手臂")
-        limb(elbow,wrist,.079f,false)
-        layers+=Layer(depth(pose[wrist])) { drawCircle(body,.045f*scale,project(pose[wrist])) }
-    }
-    layers+=Layer(depth(pose[MotionJoint.CHEST])) {
-        val hip=project(pose[MotionJoint.PELVIS]);val chest=project(pose[MotionJoint.CHEST])
-        val line=chest-hip;val normal=Offset(-line.y,line.x)/line.getDistance().coerceAtLeast(.001f)
-        val topWidth=.22f*scale+(project(pose[MotionJoint.SHOULDER_L])-project(pose[MotionJoint.SHOULDER_R])).getDistance()*.55f
-        val bottomWidth=(.23f+.11f*abs(sin(yaw)))*scale
-        val tl=chest+normal*topWidth*.5f;val tr=chest-normal*topWidth*.5f
-        val bl=hip+normal*bottomWidth*.5f;val br=hip-normal*bottomWidth*.5f
-        val bodyPath=Path().apply {
-            moveTo(tl.x,tl.y);cubicTo(tl.x+line.x*.10f,tl.y+line.y*.10f,tr.x+line.x*.10f,tr.y+line.y*.10f,tr.x,tr.y)
-            cubicTo(tr.x-line.x*.65f,tr.y-line.y*.65f,br.x+line.x*.35f,br.y+line.y*.35f,br.x,br.y)
-            quadraticTo(hip.x-line.x*.12f,hip.y-line.y*.12f,bl.x,bl.y)
-            cubicTo(bl.x+line.x*.35f,bl.y+line.y*.35f,tl.x-line.x*.65f,tl.y-line.y*.65f,tl.x,tl.y);close()
-        }
-        drawPath(bodyPath,outline)
-        drawPath(bodyPath,Brush.linearGradient(listOf(Color(0xFF9AA593),Color(0xFFE5E8DF),body),tl,tr))
-        val a=pose[MotionJoint.PELVIS];val b=pose[MotionJoint.CHEST]
-        if(highlights.any{it in listOf("胸部","背部","腹部")}) {
-            val from=if(muscle=="腹部").25f else .57f
-            rod(a+(b-a)*from,a+(b-a)*if(muscle=="腹部").66f else .86f,
-                if(muscle=="腹部").14f else .20f,DemoMuscle,false)
-        }
-        rod(a,a+(b-a)*.12f,.25f,if("腿部" in highlights)DemoMuscle else Color(0xFF5D6D51))
-        rod(b,pose[MotionJoint.NECK],.10f,body)
-        val head=project(pose[MotionJoint.HEAD])
-        drawCircle(outline,.115f*scale,head)
-        drawCircle(Brush.radialGradient(listOf(Color(0xFFF0F1EC),Color(0xFFB8C1B0)),
-            head-Offset(.025f*scale,.03f*scale),.13f*scale),.108f*scale,head)
-        val spine=(b-a).unit()
-        val supine=guide.kind in listOf(MotionKind.BENCH,MotionKind.DB_BENCH,MotionKind.INCLINE_BENCH,
-            MotionKind.FLY,MotionKind.LYING_TRICEPS,MotionKind.BRIDGE,MotionKind.CRUNCH,MotionKind.REVERSE_CRUNCH)
-        val side=(pose[MotionJoint.SHOULDER_L]-pose[MotionJoint.SHOULDER_R]).unit()
-        val face=MotionPoint(spine.y*side.z-spine.z*side.y,spine.z*side.x-spine.x*side.z,
-            spine.x*side.y-spine.y*side.x).unit()*(if(supine)-1f else 1f)
-        drawCircle(Color(0xFFACB69F),.022f*scale,project(pose[MotionJoint.HEAD]+face*.10f))
-        listOf(MotionJoint.SHOULDER_L,MotionJoint.SHOULDER_R).forEach { joint ->
-            val center=project(pose[joint])
-            drawCircle(if(muscle=="肩部")DemoMuscle else body,.065f*scale,center)
-        }
-    }
-    layers.sortedBy { it.z }.forEach { it.draw() }
-    pose.props.filter { it.kind in listOf(MotionPropKind.DUMBBELL,MotionPropKind.BARBELL,MotionPropKind.BAR) &&
-        !(guide.kind==MotionKind.SQUAT&&it.kind==MotionPropKind.BARBELL) }
-        .forEach(::equipment)
+    ExerciseMotionCanvas(guide,progress,modifier,detailed=false,showTrajectory=false)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -236,7 +90,10 @@ private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, a
     val enabled=animationsEnabled()
     var playing by rememberSaveable(guide.key) { mutableStateOf(enabled) }
     var speed by rememberSaveable(guide.key) { mutableFloatStateOf(1f) }
-    var angle by rememberSaveable(guide.key) { mutableFloatStateOf(32f) }
+    val defaultAngle=remember(guide.kind) { if(AnatomyMesh.profile(guide.kind).primary.any {
+        it in setOf(MusclePart.LAT,MusclePart.TRAPEZIUS,MusclePart.HAMSTRING) }) -55f else 55f }
+    var angle by rememberSaveable(guide.key) { mutableFloatStateOf(defaultAngle) }
+    var showTrajectory by rememberSaveable(guide.key) { mutableStateOf(true) }
     var large by rememberSaveable(guide.key) { mutableStateOf(false) }
     val progress=rememberMotionClock(guide.key,playing,speed)
     val phase by remember(progress) { derivedStateOf { MotionEngine.phase(progress.floatValue) } }
@@ -246,9 +103,9 @@ private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, a
         Column(modifier,verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Surface(color=DemoBackground,shape=RoundedCornerShape(22.dp)) {
                 Box {
-                    ExerciseMotionCanvas(guide,progress,if(large)Modifier.fillMaxWidth().height(largeSceneHeight)
-                        else Modifier.fillMaxWidth().aspectRatio(1.32f),angle)
-                    Text("内置动态示范",Modifier.align(Alignment.TopStart).padding(14.dp),color=Blue,
+                    AnatomySurface(guide,progress,angle,showTrajectory,if(large)Modifier.fillMaxWidth().height(largeSceneHeight)
+                        else Modifier.fillMaxWidth().aspectRatio(1.32f))
+                    Text("肌肉分区示范",Modifier.align(Alignment.TopStart).padding(14.dp),color=Blue,
                         style=MaterialTheme.typography.labelSmall)
                     TextButton(onClick={large=!large},modifier=Modifier.align(Alignment.TopEnd)) {
                         Text(if(large)"缩小" else "放大 ↗")
@@ -261,7 +118,10 @@ private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, a
                     Text(if(playing)"暂停示范" else "播放示范")
                 }
                 TextButton(onClick={speed=if(speed==1f).5f else 1f}) { Text(if(speed==1f)"1× 速度" else "0.5× 慢速") }
-                TextButton(onClick={angle=if(angle==32f)0f else 32f}) { Text(if(angle==32f)"侧面" else "斜侧") }
+                TextButton(onClick={angle=if(angle==0f)defaultAngle else 0f}) { Text(if(angle==0f)"斜侧" else "侧面") }
+                TextButton(onClick={angle=90f}) { Text("正面") }
+                TextButton(onClick={angle=-90f}) { Text("背面") }
+                TextButton(onClick={showTrajectory=!showTrajectory}) { Text(if(showTrajectory)"隐藏轨迹" else "显示轨迹") }
             }
             Slider(value=progress.floatValue,onValueChange={playing=false;progress.floatValue=it},
                 modifier=Modifier.semantics{contentDescription="动作示范进度"})
@@ -275,8 +135,9 @@ private fun DrawScope.drawExercisePose(pose: MotionPose, guide: ExerciseGuide, a
                     }
                 }
             }
-            Text("高亮：${guide.focus}",color=Blue,style=MaterialTheme.typography.bodySmall)
-            Text("可拖动进度查看姿势；示范速度可调，按自己的可控节奏练习。",color=Muted,
+            Text("主要区域 · ${guide.focus}",color=Color(0xFFC35F48),style=MaterialTheme.typography.bodySmall)
+            Text("红色：主要区域  ·  金色：辅助区域  ·  青线：移动路径",color=Muted,style=MaterialTheme.typography.labelSmall)
+            Text("可慢放、拖动和切换视角。肌群分区与路径为教学示意，不代表个人实际肌肉激活强度。",color=Muted,
                 style=MaterialTheme.typography.labelSmall)
         }
     }

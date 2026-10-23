@@ -34,7 +34,7 @@ import java.time.LocalDate
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             ExerciseMotionCanvas(guide, remember { mutableFloatStateOf(.46f) },
-                Modifier.size(88.dp).clip(RoundedCornerShape(18.dp)))
+                Modifier.size(88.dp).clip(RoundedCornerShape(18.dp)), detailed=false, showTrajectory=false)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("先看懂，再练起来", color = Blue, style = MaterialTheme.typography.labelMedium)
                 Text(exercise.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)

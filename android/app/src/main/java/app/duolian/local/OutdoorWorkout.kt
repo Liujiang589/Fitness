@@ -73,8 +73,11 @@ import app.duolian.local.outdoor.OutdoorLive
             WorkoutMetric(clock(run.elapsedMs), "运动时长", Modifier.weight(1f))
             WorkoutMetric(if (run.kind == OutdoorKind.RUN) OutdoorSpeed.currentPace(speed)
                 else speed?.let { "%.1f".format(it * 3.6) } ?: "—",
-                if (run.kind == OutdoorKind.RUN) "当前配速 /公里" else "当前速度 公里/时", Modifier.weight(1f))
+                if (run.kind == OutdoorKind.RUN) "平滑配速 /公里" else "平滑速度 公里/时", Modifier.weight(1f))
         }
+        HorizontalDivider(color = Color(0xFF48523F))
+        Text(if (run.stepCounting) "本次走跑 · ${run.steps} 步" else "本次步数 · 等待传感器读数或未启用",
+            color = Color(0xFFCED7C5), style = MaterialTheme.typography.labelMedium)
     }
     Panel(color = if (signal == OutdoorSignal.GOOD) Color(0xFFE8EEDF) else PaleBlue) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -82,7 +85,12 @@ import app.duolian.local.outdoor.OutdoorLive
             Text(signal.title, fontWeight = FontWeight.Bold)
             if (signal == OutdoorSignal.SEARCHING) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
         }
-        Text(signal.detail, color = Muted, style = MaterialTheme.typography.bodyMedium)
+        Text(if (recording && signal == OutdoorSignal.GOOD && live.stationary)
+            "当前接近静止，已冻结路线锚点，避免把GPS漂移累加为路程。" else signal.detail,
+            color = Muted, style = MaterialTheme.typography.bodyMedium)
+        if (recording && signal == OutdoorSignal.GOOD) Text(
+            "水平精度约 ${live.accuracy?.toInt() ?: "—"} 米 · ${live.fixAgeMs?.let { "${it / 1000} 秒前更新" } ?: "等待定位"}",
+            color = Muted, style = MaterialTheme.typography.labelSmall)
         if (signal == OutdoorSignal.LOCATION_OFF) TextButton(onClick = {
             context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         }) { Text("打开定位设置") }
@@ -96,13 +104,17 @@ import app.duolian.local.outdoor.OutdoorLive
         DetailDisclosure("配速、步数与定位详情") {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Stat(OutdoorMath.pace(run), "平均配速", Modifier.weight(1f))
-                Stat(speed?.let { "%.1f".format(it * 3.6) } ?: "—", "当前速度 km/h", Modifier.weight(1f))
+                Stat(speed?.let { "%.1f".format(it * 3.6) } ?: "—", "平滑速度 km/h", Modifier.weight(1f))
             }
             Text(if (run.stepCounting) "本次采集 ${run.steps} 步" else "本次尚未采集到计步数据", color = Muted)
             Text(live.accuracy?.takeIf { recording }?.let { "最近定位精度约 ${it.toInt()} 米" }
                 ?: "暂无可靠的实时定位精度", color = Muted)
             Text("时长包含等待 GPS 和弱信号的时间，不包含暂停或进程中断时间；缺失路段不补算距离。", color = Muted,
                 style = MaterialTheme.typography.bodySmall)
+            Text("速度经短时间平滑，变化可能滞后数秒；GPS质量不足时显示—，不把失联当作静止。已跳过 ${live.filteredFixes} 个不可靠定位。",
+                color = Muted, style = MaterialTheme.typography.bodySmall)
+            Text("本次步数与当天累计分开统计；手机传感器可能成批上报。距离来自GPS，不按步数乘步长猜测。",
+                color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         HorizontalDivider(color = Hairline)
         Row(verticalAlignment = Alignment.CenterVertically) {

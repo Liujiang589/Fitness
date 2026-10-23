@@ -210,16 +210,17 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
                     item { Panel {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("日常计步", fontWeight = FontWeight.Bold)
+                                Text("当天已采集步数", fontWeight = FontWeight.Bold)
                                 Text("今日已采集 ${days.firstOrNull { it.date == today }?.steps ?: 0} 步", color = Muted)
-                                Text(if (live.daily) "已开启 · 通知栏持续显示" else "按需开启，日常计步不使用 GPS", color = Muted, style = MaterialTheme.typography.bodySmall)
+                                Text(if (live.daily) if (live.stepReadAt == null) "已开启 · 等待传感器首条读数" else
+                                    "传感器已接入 · 可能延迟数秒成批更新" else "按需开启，日常计步不使用 GPS", color = Muted, style = MaterialTheme.typography.bodySmall)
                             }
                             Switch(checked = live.daily, onCheckedChange = { enabled ->
                                 if (enabled) consent = OutdoorService.DAILY_ON else vm.command(OutdoorService.DAILY_OFF)
                             }, enabled = ready && !working && OutdoorService.hasCounter(context))
                         }
                         Text(if (!OutdoorService.hasCounter(context)) "此手机没有计步传感器；仍可使用 GPS 记录步行和跑步。" else
-                            "关闭日常计步不影响当前运动。强制停止应用、手机重启或系统省电清理会中断采集，重新打开后需再次开启。", color = Muted, style = MaterialTheme.typography.bodySmall)
+                            "这里是独练开启期间已采集的当天步数，不等于手机健康应用的全天总步数。手机重启、强制停止或省电清理造成的缺失不补算。", color = Muted, style = MaterialTheme.typography.bodySmall)
                         DetailDisclosure("近 7 天步数") {
                             (0L..6L).forEach { offset ->
                                 val date = LocalDate.parse(today).minusDays(offset).toString()

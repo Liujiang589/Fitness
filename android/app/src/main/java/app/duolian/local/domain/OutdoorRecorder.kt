@@ -22,13 +22,20 @@ class OutdoorRecorder {
         private set
     var speedMps: Double? = null
         private set
+    var stationary: Boolean = false
+        private set
+    var filteredFixes: Int = 0
+        private set
+    private val speedFilter = OutdoorSpeedFilter()
     private var tickAt: Long? = null
     private var startedTick = 0L
     private var epochAnchor = 0L
     private var lastFixAt: Long? = null
+    val lastFixTick: Long? get() = lastFixAt
     private var lastSampleAt: Long? = null
     private var previousFix: RoutePoint? = null
     private var previousCounter: Long? = null
+    private var previousCounterAt: Long? = null
     private var broken = true
 
     fun recover(saved: OutdoorRun, tick: Long) {
@@ -43,7 +50,7 @@ class OutdoorRecorder {
         check(run == null) { "已有未结束运动，请先继续或结束它" }
         run = OutdoorRun(kind = kind, startedAt = wall)
         tickAt = tick; startedTick = tick; epochAnchor = wall
-        previousCounter = null; resetFixes()
+        previousCounter = null; previousCounterAt = null; filteredFixes = 0; resetFixes()
         signal = OutdoorSignal.SEARCHING
     }
 
@@ -57,8 +64,8 @@ class OutdoorRecorder {
         }
         tickAt = tick
         if (run?.status == OutdoorStatus.ACTIVE) {
-            if (lastFixAt?.let { tick - it > 10000 } != false) speedMps = null
-            if (tick - (lastFixAt ?: startedTick) > 30000 && signal != OutdoorSignal.LIMIT) {
+            if (lastFixAt?.let { tick - it > 10000 } != false) { speedMps = null; accuracy = null }
+            if (tick - (lastFixAt ?: startedTick) > OutdoorTrackingQuality.GAP_MS && signal != OutdoorSignal.LIMIT) {
                 disconnect(); signal = OutdoorSignal.WEAK
             }
         }
@@ -67,7 +74,7 @@ class OutdoorRecorder {
     fun pause(wall: Long, tick: Long, reason: OutdoorSignal = OutdoorSignal.PAUSED) {
         advance(wall, tick)
         run = run?.copy(status = OutdoorStatus.PAUSED)
-        disconnect(); previousCounter = null
+        disconnect(); previousCounter = null; previousCounterAt = null
         signal = reason
     }
 
@@ -77,7 +84,7 @@ class OutdoorRecorder {
         // Never charge time spent paused, dead or rebooting to this workout.
         run = r.copy(status = OutdoorStatus.ACTIVE, updatedAt = maxOf(r.updatedAt, wall))
         tickAt = tick; startedTick = tick; epochAnchor = maxOf(r.updatedAt, wall)
-        previousCounter = null; resetFixes()
+        previousCounter = null; previousCounterAt = null; resetFixes()
         signal = OutdoorSignal.SEARCHING
     }
 
@@ -87,14 +94,15 @@ class OutdoorRecorder {
     }
 
     fun clear() {
-        run = null; tickAt = null; previousCounter = null
+        run = null; tickAt = null; previousCounter = null; previousCounterAt = null; filteredFixes = 0
         resetFixes(); signal = OutdoorSignal.IDLE
     }
 
     fun enableStepCounting() { run = run?.copy(stepCounting = true) }
 
     fun stepCounter(counter: Long, wall: Long, tick: Long, sampleTick: Long = tick) {
-        if (counter < 0 || sampleTick > tick || run?.status == OutdoorStatus.ACTIVE && sampleTick < startedTick) return
+        if (counter < 0 || sampleTick > tick || previousCounterAt?.let { sampleTick <= it } == true ||
+            run?.status == OutdoorStatus.ACTIVE && sampleTick < startedTick) return
         advance(wall, tick)
         run = run?.let { r ->
             val delta = if (r.status == OutdoorStatus.ACTIVE)
@@ -102,49 +110,63 @@ class OutdoorRecorder {
             r.copy(steps = (r.steps + delta).coerceAtMost(10_000_000))
         }
         previousCounter = counter
+        previousCounterAt = sampleTick
     }
 
     /** fixTick is the provider's elapsedRealtime timestamp, never the wall clock receipt time. */
     fun fix(latitude: Double, longitude: Double, precision: Float, fixTick: Long,
         tick: Long, wall: Long, reported: Double?, uncertainty: Double?) {
-        if (run?.status != OutdoorStatus.ACTIVE || tick - fixTick !in 0..15000 ||
+        if (run?.status != OutdoorStatus.ACTIVE || tick - fixTick !in 0..OutdoorTrackingQuality.MAX_FIX_AGE_MS ||
             fixTick < startedTick || lastSampleAt?.let { fixTick <= it } == true) return
         advance(wall, tick)
         lastSampleAt = fixTick
-        val r = run!!
-        val p = RoutePoint(latitude, longitude, epochAnchor + fixTick - startedTick, precision, r.segment)
-        if (!OutdoorMath.valid(p)) {
+        var r = run!!
+        var p = RoutePoint(latitude, longitude, epochAnchor + fixTick - startedTick, precision, r.segment)
+        if (!OutdoorMath.valid(p) || precision > OutdoorTrackingQuality.MAX_ACCURACY_METERS) {
+            filteredFixes++
             disconnect(); signal = OutdoorSignal.INACCURATE; return
         }
         if (r.points.size >= OutdoorMath.MAX_POINTS) {
             disconnect(); signal = OutdoorSignal.LIMIT; return
         }
-        // Reject a teleport for both distance and speed, even if the provider reports ground speed.
+        val groundSpeed = OutdoorTrackingQuality.reliableGroundSpeed(r.kind, reported, uncertainty)
+        val still = OutdoorTrackingQuality.stationary(groundSpeed, uncertainty)
+        // Reject a teleport and ground-speed-inconsistent displacement before changing either metric.
         val before = previousFix
-        if (before != null && before.segment == p.segment) {
-            val seconds = (p.time - before.time) / 1000.0
-            val limit = if (r.kind == OutdoorKind.WALK) 5.0 else 12.0
-            if (seconds <= 0 || seconds <= 30 && OutdoorMath.distance(before, p) / seconds > limit) {
-                speedMps = null; signal = OutdoorSignal.INACCURATE; return
-            }
+        if (before != null && (!OutdoorTrackingQuality.plausible(before, p, r.kind, null) ||
+            !still && !OutdoorTrackingQuality.plausible(before, p, r.kind, groundSpeed))) {
+            filteredFixes++; speedMps = null; signal = OutdoorSignal.INACCURATE; return
         }
-        val next = OutdoorMath.append(r, p)
-        // A rejected jump must not replace the trusted location used for speed.
-        if (next.points.size == r.points.size && r.points.lastOrNull()?.let {
-                it.segment == p.segment && OutdoorMath.distance(it, p) > 40
-            } == true) {
-            speedMps = null; signal = OutdoorSignal.INACCURATE; return
+        val anchor = r.points.lastOrNull()
+        // A stopped receiver can wander within its error radius. Keep the map anchor and distance fixed.
+        if (still && anchor != null && anchor.segment == p.segment) {
+            stationary = true; previousFix = p; lastFixAt = fixTick; accuracy = precision; broken = false
+            speedMps = speedFilter.add(0.0, fixTick, stationary = true); signal = OutdoorSignal.GOOD
+            return
         }
+        // After a long stop or lost fixes, resume a separate segment instead of drawing a shortcut.
+        if (anchor != null && anchor.segment == p.segment && p.time - anchor.time > OutdoorTrackingQuality.GAP_MS) {
+            disconnect(); r = run!!; p = p.copy(segment = r.segment)
+        }
+        val routeAnchor = r.points.lastOrNull()?.takeIf { it.segment == p.segment }
+        if (routeAnchor != null && !OutdoorTrackingQuality.plausible(routeAnchor, p, r.kind, groundSpeed)) {
+            filteredFixes++; speedMps = null; signal = OutdoorSignal.INACCURATE; return
+        }
+        val moved = routeAnchor == null || OutdoorMath.distance(routeAnchor, p) >= OutdoorTrackingQuality.movementThreshold(routeAnchor, p)
+        val next = if (moved) OutdoorMath.append(r, p) else r
         run = next
         val speedPoint = p.copy(segment = next.segment)
-        speedMps = OutdoorSpeed.metersPerSecond(r.kind, previousFix, speedPoint, reported, uncertainty)
-        previousFix = speedPoint; broken = false; lastFixAt = tick; accuracy = precision
+        // Coordinate fallback uses the distance anchor, rather than tiny two-second GPS jitters.
+        val candidate = groundSpeed ?: if (moved) OutdoorSpeed.metersPerSecond(r.kind, routeAnchor, speedPoint, null) else null
+        speedMps = speedFilter.add(candidate, fixTick, still)
+        stationary = still
+        previousFix = speedPoint; broken = false; lastFixAt = fixTick; accuracy = precision
         signal = OutdoorSignal.GOOD
     }
 
     private fun disconnect() {
         if (!broken) run = run?.copy(segment = run!!.segment + 1)
-        broken = true; previousFix = null; speedMps = null; accuracy = null
+        broken = true; previousFix = null; speedMps = null; accuracy = null; stationary = false; speedFilter.reset()
     }
     private fun resetFixes() {
         disconnect(); lastFixAt = null; lastSampleAt = null

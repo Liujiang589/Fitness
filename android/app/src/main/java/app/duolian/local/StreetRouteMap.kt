@@ -248,7 +248,10 @@ private class StreetMapController(context: Context) {
             wasTracking = tracking
         }
         if (follow && tracking && (previousCount != points.size || previousFit != fitRequest)) {
-            map.animateCamera(CameraUpdateFactory.newLatLngZoom(converted.getValue(points.last()), 17f))
+            val latest = converted.getValue(points.last())
+            if (previousCount < 0 || previousFit != fitRequest)
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(latest, 17f))
+            else map.animateCamera(CameraUpdateFactory.changeLatLng(latest))
         } else if (previousFit != fitRequest || previousCount < 0) {
             if (points.size == 1) map.moveCamera(CameraUpdateFactory.newLatLngZoom(converted.getValue(points.first()), 17f))
             else {

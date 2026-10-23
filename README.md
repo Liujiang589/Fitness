@@ -4,9 +4,9 @@ Android 本地健身训练应用（包名 `app.duolian.local`），自带安装�
 
 ## 当前版本
 
-- 独练 V1.12（versionCode26），Android8.0及以上；Release优化变体，沿用原开发签名以兼容覆盖升级。
-- [独练-V1.12.apk](独练-V1.12.apk)，70,765,659字节；[ZIP交付包](https://duolian15.app.workbuddy.host/?sharecode=N6M3DJP2HU)含指南、体验清单与流畅度报告。
-- APK SHA-256：`e738162d2c104cb2b5d57b54ebfd37b10a58758dd4ac12523df842dac384c4b0`。建议先导出备份，再覆盖安装，不卸载旧版。
+- 独练 V1.13（versionCode27），Android8.0及以上；Release优化变体，沿用原开发签名以兼容覆盖升级。
+- [独练-V1.13.apk](独练-V1.13.apk)，70,782,043字节；[ZIP交付包](https://duolian15.app.workbuddy.host/?sharecode=N6M3DJP2HU)含指南、体验清单与流畅度报告。
+- APK SHA-256：`a5270c4f5e00aba21b551dd43d6479f70151c0b3b79423f768fa8b6b427d1231`。建议先导出备份，再覆盖安装，不卸载旧版。
 
 第三批：近七天回顾、生熟状态筛选、最近份量复用与每份标签换算；高清照片后台解码缓存、数据处理移到后台、缩小计时更新范围、滚动暂停动作预览，启用发布压缩。原训练、动作指导及户外功能保留。
 
@@ -116,7 +116,7 @@ Android 本地健身训练应用（包名 `app.duolian.local`），自带安装�
 
 ## 目录
 
-- `独练-V1.12.apk`：当前安装包；`独练-V1.12-安装包.zip`及同名目录为交付文件，历史版本保留供回溯。
+- `独练-V1.13.apk`：当前安装包；`独练-V1.12-安装包.zip`及同名目录为交付文件，历史版本保留供回溯。
 - `android/`：Android 源码工程（Kotlin / Compose / Room），含构建脚本与单元测试。
 - [CHANGELOG.md](CHANGELOG.md)：版本迭代摘要。
 - [android/README.md](android/README.md)：源码结构、构建步骤与验证结果。

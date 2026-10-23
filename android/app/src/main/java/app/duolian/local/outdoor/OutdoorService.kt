@@ -22,7 +22,8 @@ import java.time.LocalDate
 data class OutdoorLive(val running: Boolean = false, val daily: Boolean = false,
     val run: OutdoorRun? = null, val signal: OutdoorSignal = OutdoorSignal.IDLE, val error: String? = null,
     val speedMps: Double? = null, val accuracy: Float? = null, val busy: Boolean = false,
-    val commandId: Long = 0)
+    val commandId: Long = 0, val stationary: Boolean = false, val filteredFixes: Int = 0,
+    val stepReadAt: Long? = null, val fixAgeMs: Long? = null)
 
 /** Foreground session tracking; no boot receiver, silent GPS restart or always-on location. */
 class OutdoorService : Service(), SensorEventListener, LocationListener {
@@ -33,6 +34,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     private val locations by lazy { getSystemService(LocationManager::class.java) }
     private val recorder = OutdoorRecorder()
     private var registered = false
+    private var stepReadAt: Long? = null
     private var locating = false
     private var daily = false
     private var loaded = false
@@ -176,7 +178,6 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
                 SensorManager.SENSOR_DELAY_NORMAL, 0)
             if (!registered && daily) { daily = false; saveOptions(); error = "计步传感器暂不可用，可重试开启" }
         } else if (!wantsCounter && registered) { sensors.unregisterListener(this); registered = false }
-        if (registered) recorder.enableStepCounting()
         maintainWakeLock()
     }
 
@@ -228,21 +229,25 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     @Deprecated("Legacy listener") override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
     override fun onSensorChanged(event: SensorEvent) {
-        val counter = event.values.firstOrNull()?.toLong()?.takeIf { it >= 0 } ?: return
-        val date = LocalDate.now().toString()
+        val counter = event.values.firstOrNull()?.takeIf { it.isFinite() && it >= 0 }?.toLong() ?: return
         val eventTick = event.timestamp / 1_000_000
         scope.launch { lock.withLock {
             if (stopped || !registered) return@withLock
             try {
                 if (tick() - eventTick !in 0..15000) return@withLock
+                val sampleWall = wall() - (tick() - eventTick)
+                val date = java.time.Instant.ofEpochMilli(sampleWall).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
                 store.steps(StepBaseline(date, counter, boot))
+                stepReadAt = eventTick; recorder.enableStepCounting()
                 recorder.stepCounter(counter, wall(), tick(), eventTick); persist(); publish()
             } catch (_: Exception) { failStorage() }
         } }
     }
     private fun publish() {
         live.value = OutdoorLive(!stopped, daily, recorder.run, recorder.signal, error,
-            recorder.speedMps, recorder.accuracy, commandId = commandId)
+            recorder.speedMps, recorder.accuracy, commandId = commandId, stationary = recorder.stationary,
+            filteredFixes = recorder.filteredFixes, stepReadAt = stepReadAt.takeIf { registered },
+            fixAgeMs = recorder.lastFixTick?.let { (tick() - it).coerceAtLeast(0) })
     }
     private fun notification(): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java)
