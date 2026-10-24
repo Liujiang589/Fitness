@@ -22,3 +22,4 @@ tools/__pycache__/
 # 独立的下载站仓库，不嵌入主仓库
 /public-download-site/
 /独练-V1.12.apk
+!/独练-V1.13-安装包.zip
