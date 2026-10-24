@@ -7,6 +7,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AnatomyMeshTest {
+    @Test fun thighMusclesStayOnTheAnteriorAndPosteriorSidesAsTheKneeBends() {
+        for(kind in listOf(MotionKind.BODY_SQUAT,MotionKind.LEG_EXTENSION,MotionKind.RDL)) for(amount in listOf(0f,.5f,1f)) {
+            val pose=MotionEngine.sample(kind,amount)
+            val a=pose[MotionJoint.HIP_L];val b=pose[MotionJoint.KNEE_L]
+            val front=MotionPoint(a.y-b.y,b.x-a.x,0f).unit()
+            val hip=(pose[MotionJoint.HIP_L]+pose[MotionJoint.HIP_R])*.5f
+            val knee=(pose[MotionJoint.KNEE_L]+pose[MotionJoint.KNEE_R])*.5f
+            val axisCenter=hip+(knee-hip)*.48f
+            val mesh=AnatomyMesh.build(pose,kind)
+            fun center(part: MusclePart)=mesh.filter { it.part==part }.map { it.a.point }.let { list ->
+                list.fold(MotionPoint(0f,0f)) { sum,p -> sum+p }*(1f/list.size)
+            }
+            assertTrue("$kind front",(center(MusclePart.QUADRICEPS)-axisCenter).dot(front)>.06f)
+            assertTrue("$kind back",(center(MusclePart.HAMSTRING)-axisCenter).dot(front)<-.055f)
+        }
+    }
     @Test fun allFortyExercisesHaveVisibleMuscleSurfacesAndFinitePosedGeometry() {
         MotionKind.entries.forEach { kind ->
             val profile=AnatomyMesh.profile(kind)

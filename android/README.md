@@ -1,6 +1,10 @@
-# 独练 Android 工程（V1.12）
+# 独练 Android 工程（V1.13）
 
 包名 `app.duolian.local`，Kotlin + Jetpack Compose + Room，支持 Android 8.0（API 26）及以上。
+
+## V1.13 肌群与走跑质量
+
+40个动作的体表/肌群网格、OpenGL深度缓冲与轨迹，GPS质量过滤/速度/显示位置分离，步数口径；224项JVM与13项HTTP通过，实机待验收。[验证](../docs/V1_13_VERIFICATION.md)、[指南](../docs/V1_13_GUIDE.md)。
 
 ## V1.12 周回顾、饮食与性能
 
@@ -42,7 +46,7 @@ Repository初始化仅种入动作库，不再自动创建基础计划。训练�
 
 ## 当前版本命名
 
-versionName为1.12，关于页展示V1.12；内部versionCode26，继续使用现有签名。对外文件为独练-V1.12.apk。规则见[VERSIONING.md](../docs/VERSIONING.md)。
+versionName为1.13，关于页展示V1.13；内部versionCode27，继续使用现有签名。对外文件为独练-V1.13.apk。规则见[VERSIONING.md](../docs/VERSIONING.md)。
 
 ## 0.12.0 信息分层与高清配图
 

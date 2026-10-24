@@ -4,13 +4,15 @@ Android 本地健身训练应用（包名 `app.duolian.local`），自带安装�
 
 ## 当前版本
 
-- 独练 V1.13（versionCode27），Android8.0及以上；Release优化变体，沿用原开发签名以兼容覆盖升级。
-- [独练-V1.13.apk](独练-V1.13.apk)，70,782,043字节；[ZIP交付包](https://duolian15.app.workbuddy.host/?sharecode=N6M3DJP2HU)含指南、体验清单与流畅度报告。
-- APK SHA-256：`a5270c4f5e00aba21b551dd43d6479f70151c0b3b79423f768fa8b6b427d1231`。建议先导出备份，再覆盖安装，不卸载旧版。
+- 独练V1.13（versionCode27），Android8.0以上，Release优化变体，沿用原开发签名。
+- [APK](独练-V1.13.apk)，70,782,043字节；[完整安装包](独练-V1.13-安装包.zip)；[肌肉示范预览](独练-V1.13-肌肉示范预览.gif)。先备份，再覆盖安装，不卸载旧版。
+- APK SHA-256：`b89527be3bc257f8c8dcffbd583021190741e36b672853b6143888db2c6a2760`。
 
-第三批：近七天回顾、生熟状态筛选、最近份量复用与每份标签换算；高清照片后台解码缓存、数据处理移到后台、缩小计时更新范围、滚动暂停动作预览，启用发布压缩。原训练、动作指导及户外功能保留。
+40个动作改用肌群分区人体与移动路径，详情采用独立线程、深度缓冲的立体绘制；保留慢放、分解、放大及侧面/前后视角。GPS静止抑制、质量门槛、异常位移与速度平滑，地图显示平滑与距离计算分开。步数明确本次与当天采集口径。
 
-206项JVM、13项HTTP、Lint和构建通过。真机情况与限制见[验证记录](docs/V1_12_VERIFICATION.md)、[流畅度检查](docs/V1_12_PERFORMANCE.md)；[使用指南](docs/V1_12_GUIDE.md)、[手机清单](docs/V1_12_ACCEPTANCE.md)。未同步WorkBuddy公网下载站。
+224项JVM、13项HTTP、Lint及构建通过。本轮手机未连接，真实GPU/地图/户外精度及耗电待验收。见[指南](docs/V1_13_GUIDE.md)、[验收步骤](docs/V1_13_ACCEPTANCE.md)、[验证记录](docs/V1_13_VERIFICATION.md)。
+
+WorkBuddy[公网站](https://duolian15.app.workbuddy.host/?sharecode=N6M3DJP2HU)已核验版本仍为V1.12，本轮未重新发布；V1.13先以本地APK供实机验收。应用内更新入口尚未接到该网站。
 
 ## V1.5 应用内更新
 

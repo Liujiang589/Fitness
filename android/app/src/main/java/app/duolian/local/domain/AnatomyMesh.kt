@@ -133,19 +133,22 @@ object AnatomyMesh {
             val knee=pose[if(left)MotionJoint.KNEE_L else MotionJoint.KNEE_R]
             val ankle=pose[if(left)MotionJoint.ANKLE_L else MotionJoint.ANKLE_R]
             val toe=pose[if(left)MotionJoint.TOE_L else MotionJoint.TOE_R]
+            // Keep anterior thigh/shin surfaces on the knee-facing side, independent of torso lean.
+            val thighFront=MotionPoint(hip.y-knee.y,knee.x-hip.x,0f).unit()
+            val shinFront=MotionPoint(knee.y-ankle.y,ankle.x-knee.x,0f).unit()
             limb(shoulder,elbow,front,listOf(.071f,.080f,.077f,.064f,.045f))
             limb(elbow,wrist,front,listOf(.046f,.064f,.056f,.041f,.031f))
-            limb(hip,knee,front,listOf(.085f,.108f,.102f,.079f,.056f))
-            limb(knee,ankle,front,listOf(.054f,.073f,.065f,.042f,.035f))
+            limb(hip,knee,thighFront,listOf(.085f,.108f,.102f,.079f,.056f))
+            limb(knee,ankle,shinFront,listOf(.054f,.073f,.065f,.042f,.035f))
             ellipsoid(elbow,(wrist-elbow).unit(),side,front,.044f,.048f,.041f,MusclePart.SURFACE)
             ellipsoid(knee,(ankle-knee).unit(),side,front,.055f,.058f,.049f,MusclePart.SURFACE)
             ellipsoid(shoulder,up,side,front,.078f,.088f,.075f,MusclePart.DELTOID)
             belly(shoulder,elbow,front,1f,MusclePart.BICEPS,.050f,.038f,offset=.057f)
             belly(shoulder,elbow,front,-1f,MusclePart.TRICEPS,.052f,.032f,offset=.056f)
             belly(elbow,wrist,front,1f,MusclePart.FOREARM,.043f,.024f,at=.38f,offset=.038f)
-            belly(hip,knee,front,1f,MusclePart.QUADRICEPS,.080f,.043f,portion=.39f,offset=.074f)
-            belly(hip,knee,front,-1f,MusclePart.HAMSTRING,.070f,.036f,portion=.37f,offset=.068f)
-            belly(knee,ankle,front,-1f,MusclePart.CALF,.058f,.038f,at=.37f,portion=.31f,offset=.048f)
+            belly(hip,knee,thighFront,1f,MusclePart.QUADRICEPS,.080f,.043f,portion=.39f,offset=.074f)
+            belly(hip,knee,thighFront,-1f,MusclePart.HAMSTRING,.070f,.036f,portion=.37f,offset=.068f)
+            belly(knee,ankle,shinFront,-1f,MusclePart.CALF,.058f,.038f,at=.37f,portion=.31f,offset=.048f)
             val handAxis=(wrist-elbow).unit(); val (hs,hf)=frame(handAxis,front)
             ellipsoid(wrist+handAxis*.026f,handAxis,hs,hf,.041f,.065f,.027f,MusclePart.SURFACE)
             val footAxis=(toe-ankle).unit(); val (fs,ff)=frame(footAxis,MotionPoint(0f,1f))
