@@ -11,7 +11,7 @@
 | 构建 | Release（R8 + 资源压缩，非 debuggable） |
 | 安装包 | [`独练-V1.20.apk`](独练-V1.20.apk)，71,103,621 字节 |
 | SHA-256 | `6901002775caf8fc0a8d5163ecb46e8d47f2612d944913e697d80b40ea1be108` |
-| 交付包 | [`独练-V1.20-安装包.zip`](独练-V1.20-安装包.zip)（含安装指引与预览图） |
+| 交付包 | [`独练-V1.20-安装包.zip`](独练-V1.20-安装包.zip)（含安装指引与验证说明） |
 | 签名 | 沿用最初开发证书，可直接覆盖升级 |
 
 ## 下载
@@ -97,7 +97,7 @@ CHANGELOG.md         版本记录
 ## 验证状态
 
 - JVM 单元测试 **239 项通过**（0 失败 / 0 错误 / 0 跳过）
-- Android Lint：27 项 Warning、6 项 Information，无 Error
+- Android Lint：29 项 Warning、6 项 Information，无 Error
 - APK：`apksigner` 与 `zipalign` 通过，非 debuggable
 - 真机记录见 [docs/V1_19_VERIFICATION.md](docs/V1_19_VERIFICATION.md)；性能采样见 [docs/V1_12_PERFORMANCE.md](docs/V1_12_PERFORMANCE.md)
 

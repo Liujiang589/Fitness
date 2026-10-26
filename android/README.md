@@ -1,7 +1,7 @@
 # 独练 · Android 工程
 
 Kotlin + Jetpack Compose + Room。包名 `app.duolian.local`，`minSdk 26`、`compileSdk/targetSdk 35`，
-当前版本 `versionName 1.19 / versionCode 33`。
+当前版本 `versionName 1.20 / versionCode 34`。
 
 ## 技术栈
 
