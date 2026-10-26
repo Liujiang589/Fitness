@@ -122,7 +122,7 @@ import java.time.LocalDate
                 Text(focus.description,
                     color = Muted, style = MaterialTheme.typography.bodyMedium)
                 Button(onClick = action,
-                    enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    enabled = !busy || focus.plan == null, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(
                         containerColor = Blue, contentColor = Color.White)) {
                     Text(focus.action, style = MaterialTheme.typography.labelLarge)

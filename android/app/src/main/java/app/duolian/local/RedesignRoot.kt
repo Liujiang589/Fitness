@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.duolian.local.domain.*
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.serialization.encodeToString
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity(){
@@ -42,6 +44,9 @@ class MainActivity : ComponentActivity(){
     }
 }
 private data class Confirmation(val title:String,val action:()->Unit)
+private val EditedPlanSaver = listSaver<Plan?, String>(
+    save = { plan -> plan?.let { listOf(Codec.encodeToString(it)) } ?: emptyList() },
+    restore = { saved -> saved.firstOrNull()?.let { Codec.decodeFromString<Plan>(it) } })
 
 @Composable private fun DuolianScreen(vm:MainViewModel=viewModel(), openOutdoor: Boolean = false){
     val exercises by vm.exercises.collectAsStateWithLifecycle();val plans by vm.plans.collectAsStateWithLifecycle()
@@ -65,7 +70,8 @@ private data class Confirmation(val title:String,val action:()->Unit)
     }
     var tab by rememberSaveable{mutableIntStateOf(0)};var nutrition by rememberSaveable{mutableStateOf(false)}
     var exerciseForm by remember{mutableStateOf(false)};var editExercise by remember{mutableStateOf<Exercise?>(null)}
-    var planForm by remember{mutableStateOf(false)};var editPlan by remember{mutableStateOf<Plan?>(null)}
+    var planForm by rememberSaveable{mutableStateOf(false)}
+    var editPlan by rememberSaveable(stateSaver = EditedPlanSaver){mutableStateOf<Plan?>(null)}
     var detail by remember{mutableStateOf<Exercise?>(null)};var auxiliary by remember{mutableStateOf<String?>(if(openOutdoor) "outdoor" else null)}
     var editBody by remember{mutableStateOf<Body?>(null)};var editFood by remember{mutableStateOf<Food?>(null)}
     var confirm by remember{mutableStateOf<Confirmation?>(null)}
@@ -110,7 +116,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
     AppUpdateHost(updater, updateState, canPrompt = ready && sessions.none { it.endedAt == null } &&
         !outdoorBlocksPrompt && !exerciseForm && !planForm && detail == null && auxiliary == null && confirm == null && pending == null)
     if(exerciseForm)ExerciseForm(editExercise,{exerciseForm=false}){x->vm.act{vm.repo.saveExercise(x)}}
-    if(planForm)PlanForm(editPlan,exercises,{planForm=false}){x->vm.act{vm.repo.savePlan(x)}}
+    if(planForm)PlanForm(editPlan,exercises,{planForm=false}){x->vm.savePlanEdits(x)}
     detail?.let { e -> ExerciseGuideDialog(e,busy,
         dismiss={detail=null},
         edit={detail=null;a.exercise(e)},

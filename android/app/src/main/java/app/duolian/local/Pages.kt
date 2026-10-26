@@ -106,9 +106,12 @@ internal class ScreenActions(
         if (active != null) {
             item { ActiveTraining(active, vm, sessions, exercises, busy, a.ask, a.detail) }
         } else {
-            item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
                 FilterChip(selected = section == 0, onClick = { section = 0 }, label = { Text("今天") })
                 FilterChip(selected = section == 1, onClick = { section = 1 }, label = { Text("计划库") })
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { a.plan(null) }) { Text("＋ 创建计划") }
             } }
             if (section == 0) {
                 item { TrainingSpotlight(focus, busy) {

@@ -46,6 +46,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+    /** Let the editor await the actual transaction, retaining its draft if persistence fails. */
+    suspend fun savePlanEdits(plan: Plan) = operationLock.withLock {
+        busy.value = true
+        try {
+            repo.savePlan(plan)
+            message.value = "已保存计划「${plan.name}」"
+        } finally { busy.value = false }
+    }
     fun setRest(seconds: Int) = act { owner.setRest(seconds) }
     private fun restFor(active: Session): Int = active.planId
         ?.let { id -> plans.value.firstOrNull { it.id == id }?.restSeconds }

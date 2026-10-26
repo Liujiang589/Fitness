@@ -32,6 +32,13 @@ class HomeCoachingUiTest {
         scene { DuolianTheme { TrainingSpotlight(focus, true) { error("duplicate") } } }
         ui.onNodeWithText("开始这场训练").assertIsNotEnabled()
     }
+    @Test fun firstPlanNavigationRemainsAvailableWhileBackgroundWorkIsBusy() {
+        var clicks = 0
+        val focus = TrainingHome.focus(emptyList(), emptyList(), LocalDate.of(2026, 10, 26))
+        scene { DuolianTheme { TrainingSpotlight(focus, true) { clicks++ } } }
+        ui.onNodeWithText("创建我的计划").assertIsEnabled().performClick()
+        assertEquals(1, clicks)
+    }
     @Test fun unknownCustomActionKeepsPersonalNotesWithoutIncorrectDemonstration() {
         val exercise = Exercise(name = "个人自定义动作", muscle = "全身", equipment = "徒手", notes = "个人节奏")
         scene { DuolianTheme { ExerciseGuideDialog(exercise, false, {}, {}, {}, {}) } }

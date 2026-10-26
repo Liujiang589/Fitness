@@ -10,17 +10,20 @@
 4. [../CHANGELOG.md](../CHANGELOG.md)：各版本的用户可感知变化
 5. [../android/README.md](../android/README.md)：源码结构、构建与开发约定
 
-## 当前版本（V1.19）
+## 当前版本（V1.20）
 
 | 文档 | 内容 |
 |---|---|
-| [V1_19_VERIFICATION.md](V1_19_VERIFICATION.md) | 构建、239 项测试、Lint、APK 校验、真机与性能采样 |
+| [V1_20_VERIFICATION.md](V1_20_VERIFICATION.md) | 计划编辑器的改动依据、构建与测试结果、未验证边界 |
+| [V1_20_PLANS.md](V1_20_PLANS.md) | 创建与编辑计划的入口、页面结构与保存行为 |
+| [V1_19_VERIFICATION.md](V1_19_VERIFICATION.md) | 走跑版本的构建、测试、Lint、APK 校验与真机采样 |
 | [V1_19_OUTDOOR.md](V1_19_OUTDOOR.md) | 准备—出发—运动—暂停—回顾的使用说明与数据口径 |
 
-## 近期版本（V1.13 – V1.18）
+## 近期版本（V1.13 – V1.19）
 
 | 版本 | 设计 / 行为 | 验证 |
 |---|---|---|
+| V1.19 | [V1_19_OUTDOOR.md](V1_19_OUTDOOR.md) 走跑流程与定位口径 | [V1_19_VERIFICATION.md](V1_19_VERIFICATION.md) |
 | V1.18 | [V1_18_ARMS.md](V1_18_ARMS.md) 手臂与腕部姿态修正 | [V1_18_VERIFICATION.md](V1_18_VERIFICATION.md) |
 | V1.17 | [V1_17_MODEL.md](V1_17_MODEL.md) 真实比例人体模型 | [V1_17_VERIFICATION.md](V1_17_VERIFICATION.md) |
 | V1.16 | [V1_16_MODEL.md](V1_16_MODEL.md) 中性哑光人偶 | [V1_16_VERIFICATION.md](V1_16_VERIFICATION.md) |
