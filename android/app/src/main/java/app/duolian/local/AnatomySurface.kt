@@ -145,7 +145,7 @@ private class AnatomyGl(private val texture: SurfaceTexture,private var width: I
         val amount=MotionEngine.amount(scene.progress)
         val frame=AnatomyProjection.frame(AnatomyMesh.build(MotionEngine.sample(scene.kind,amount),scene.kind),view,
             AnatomyMesh.profile(scene.kind),amount,width.toFloat(),height.toFloat(),16*scene.density,34*scene.density,false)
-        GLES20.glViewport(0,0,width,height);GLES20.glClearColor(237/255f,240/255f,233/255f,1f)
+        GLES20.glViewport(0,0,width,height);GLES20.glClearColor(241/255f,243/255f,246/255f,1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT);GLES20.glUseProgram(program)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         if(scene.paths) for(path in paths) {

@@ -114,8 +114,10 @@ object MotionEngine {
                     handL=shoulder+p(.03f,-.65f,.30f);handR=handL.copy(z=-.30f)
                     dumbbell=true
                 } else if(kind==MotionKind.BODY_SQUAT) {
-                    handL=shoulder+p(.61f,-.08f,.22f);handR=handL.copy(z=-.22f)
-                    armPoleL=shoulder+p(.45f,.04f,.4f);armPoleR=armPoleL.copy(z=-.4f)
+                    // Forward reach with a soft elbow bend; keep the hinge below the arm,
+                    // rather than pulling both elbows outwards into a drooping forearm pose.
+                    handL=shoulder+p(.672f,-.045f,.21f);handR=handL.copy(z=-.21f)
+                    armPoleL=shoulder+p(.34f,-.24f,.21f);armPoleR=armPoleL.copy(z=-.21f)
                 } else {
                     handL=shoulder+p(-.08f,.025f,.47f);handR=handL.copy(z=-.47f)
                     armPoleL=shoulder+p(-.35f,-.4f,.6f);armPoleR=armPoleL.copy(z=-.6f)

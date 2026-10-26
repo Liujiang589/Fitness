@@ -49,7 +49,11 @@ class OutdoorSpeedFilter {
     private var displayed: Double? = null
     fun reset() { samples.clear(); lastAt = null; displayed = null }
     fun add(speed: Double?, at: Long, stationary: Boolean = false): Double? {
-        if (speed == null || !speed.isFinite() || speed < 0) return null
+        if (speed == null || !speed.isFinite() || speed < 0) {
+            // A valid fix may not have crossed the distance gate yet; avoid a pace/dash flicker.
+            // This is a bounded hold of the last measurement, never an invented zero speed.
+            return displayed.takeIf { lastAt?.let { last -> at-last in 0..6000 } == true }
+        }
         if (lastAt?.let { at <= it } == true) return displayed
         if (lastAt?.let { at - it > OutdoorTrackingQuality.GAP_MS } == true) reset()
         if (stationary) { reset(); lastAt = at; displayed = 0.0; return 0.0 }

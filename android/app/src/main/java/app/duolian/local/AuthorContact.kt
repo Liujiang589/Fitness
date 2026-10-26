@@ -30,19 +30,19 @@ import kotlinx.coroutines.delay
         Eyebrow("独练 / 关于作者", Volt)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).background(Volt, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                Text("LJ", color = Night, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                Text("LJ", color = Night, fontWeight = FontWeight.SemiBold, fontSize = 19.sp)
             }
             Column(Modifier.weight(1f).padding(start = 13.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(author, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                Text("独练作者 · 建议与反馈", color = Color(0xFFB3BDA9), style = MaterialTheme.typography.labelMedium)
+                Text(author, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
+                Text("独练作者 · 建议与反馈", color = OnDarkMuted, style = MaterialTheme.typography.labelMedium)
             }
         }
-        HorizontalDivider(color = Color(0xFF414B38))
+        HorizontalDivider(color = DarkSeparator)
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("联系电话", color = Color(0xFFB3BDA9), style = MaterialTheme.typography.labelSmall)
+            Text("联系电话", color = OnDarkMuted, style = MaterialTheme.typography.labelSmall)
             Text(phone, color = Color.White, fontSize = 24.sp, lineHeight = 32.sp,
                 fontWeight = FontWeight.SemiBold, letterSpacing = .8.sp)
-            Text("关于训练、体验，或你想看到的新功能。", color = Color(0xFFB3BDA9),
+            Text("关于训练、体验，或你想看到的新功能。", color = OnDarkMuted,
                 style = MaterialTheme.typography.bodySmall)
         }
         Button(onClick = {
@@ -54,7 +54,7 @@ import kotlinx.coroutines.delay
             colors = ButtonDefaults.buttonColors(containerColor = Volt, contentColor = Night)) {
             AppSymbol(0, Night, Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(if (copied) "已复制联系电话" else "复制联系方式", fontWeight = FontWeight.Bold)
+            Text(if (copied) "已复制联系电话" else "复制联系方式", fontWeight = FontWeight.SemiBold)
         }
     }
 }

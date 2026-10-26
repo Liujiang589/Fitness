@@ -17,6 +17,27 @@ class OutdoorStorageTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private fun open(name: String) = Room.databaseBuilder(context, LocalDatabase::class.java, name).build()
 
+    @Test fun discardRemovesOnlyUnfinishedCheckpointAndPreservesDailyStepsAndHistory() = runBlocking {
+        val name = "outdoor-discard-${newId()}.db"
+        var db = open(name)
+        try {
+            var store = OutdoorStore(db)
+            val unfinished = OutdoorRun(kind = OutdoorKind.RUN, startedAt = 1000, status = OutdoorStatus.PAUSED)
+            val finished = OutdoorRun(kind = OutdoorKind.WALK, startedAt = 1000, updatedAt = 2000,
+                elapsedMs = 1000, endedAt = 2000, status = OutdoorStatus.FINISHED)
+            store.steps(StepBaseline("2026-10-26", 100, 1))
+            store.steps(StepBaseline("2026-10-26", 125, 1))
+            store.save(unfinished); store.save(finished)
+            store.discard(unfinished.id)
+            db.close(); db = open(name); store = OutdoorStore(db)
+            assertEquals(listOf(finished), store.runs())
+            assertEquals(25L, store.days().single().steps)
+            try { store.discard(finished.id); fail("saved history must be protected") }
+            catch (_: IllegalStateException) { }
+            assertEquals(listOf(finished), store.runs())
+        } finally { db.close(); context.deleteDatabase(name) }
+    }
+
     @Test fun counterAndRouteSurviveReopenAndBackupRestoresPaused() = runBlocking {
         val name = "outdoor-${newId()}.db"
         var db = open(name)

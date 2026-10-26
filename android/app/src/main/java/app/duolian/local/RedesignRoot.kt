@@ -36,8 +36,8 @@ import java.time.LocalDate
 
 class MainActivity : ComponentActivity(){
     override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0xFFF5F5F0.toInt(), 0xFFF5F5F0.toInt()),
-            navigationBarStyle = SystemBarStyle.light(0xFFF5F5F0.toInt(), 0xFFF5F5F0.toInt()))
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0xFFF5F5F7.toInt(), 0xFFF5F5F7.toInt()),
+            navigationBarStyle = SystemBarStyle.light(0xFFF5F5F7.toInt(), 0xFFF5F5F7.toInt()))
         setContent{DuolianTheme { DuolianScreen(openOutdoor = intent.getBooleanExtra("open_outdoor", false)) }}
     }
 }
@@ -134,15 +134,15 @@ private data class Confirmation(val title:String,val action:()->Unit)
 @Composable private fun ProfilePage(body:List<Body>,sessions:List<Session>,rest:Int,busy:Boolean,vm:MainViewModel,a:ScreenActions,export:()->Unit,import:()->Unit,recovery:()->Unit,autoBackup:()->Unit,autoBackupAt:Long?,updateState:AppUpdateState,checkUpdate:()->Unit){
     val finished = sessions.filter{it.endedAt!=null}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(15.dp)){
-        item{Panel(color=Night){
+        item{Panel{
             Row(verticalAlignment=Alignment.CenterVertically){
-                Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Volt),
+                Box(Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape).background(PaleBlue),
                     contentAlignment=Alignment.Center){
-                    Text("独",color=Night,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                    Text("独",color=Blue,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold)
                 }
                 Column(Modifier.weight(1f).padding(start=14.dp)){
-                    Text("独练者",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge,color=Color.White)
-                    Text("专注每一次，成为更好的自己",color=Color(0xFFB3BDA9),style=MaterialTheme.typography.bodySmall)
+                    Text("独练者",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.titleLarge,color=Ink)
+                    Text("专注每一次，成为更好的自己",color=Muted,style=MaterialTheme.typography.bodySmall)
                 }
             }
         }}
@@ -155,7 +155,7 @@ private data class Confirmation(val title:String,val action:()->Unit)
         } } }
         item{Section("身体记录","＋ 记录",{a.body(null)})}
         if(body.isEmpty())item{EmptyPanel("从今天开始记录变化","记录体重和体脂率，数据保存在这台手机。")}
-        items(body,key={it.id}){b->Panel{Row{Column(Modifier.weight(1f)){Text("${kg(b.grams)} kg",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);Text("${b.date}  ${b.fatPercent?.let{"体脂 ${number(it)}%"}?:""}",color=Muted,style=MaterialTheme.typography.bodySmall)};TextButton(onClick={a.body(b)}){Text("编辑")};TextButton(onClick={a.ask("删除此身体记录？"){vm.act{vm.repo.deleteBody(b.id)}}}){Text("删除",color=Muted)}}}}
+        items(body,key={it.id}){b->Panel{Row{Column(Modifier.weight(1f)){Text("${kg(b.grams)} kg",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.titleLarge);Text("${b.date}  ${b.fatPercent?.let{"体脂 ${number(it)}%"}?:""}",color=Muted,style=MaterialTheme.typography.bodySmall)};TextButton(onClick={a.body(b)}){Text("编辑")};TextButton(onClick={a.ask("删除此身体记录？"){vm.act{vm.repo.deleteBody(b.id)}}}){Text("删除",color=Muted)}}}}
         item{Section("训练设置")}
         item{GroupCard{
             IconSettingRow(1,Blue,"默认组间休息","组间与 HIIT 计时会显示在通知栏",trailing="${rest} 秒"){a.auxiliary("rest")}

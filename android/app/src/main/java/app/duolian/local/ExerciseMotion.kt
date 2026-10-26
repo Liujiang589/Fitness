@@ -33,7 +33,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import app.duolian.local.domain.*
 import kotlin.math.*
 
-private val DemoBackground = Color(0xFFEDF0E9)
+private val DemoBackground = ArtSurface
 
 @Composable private fun animationsEnabled(): Boolean {
     val context = LocalContext.current
@@ -93,7 +93,7 @@ private val DemoBackground = Color(0xFFEDF0E9)
     val defaultAngle=remember(guide.kind) { if(AnatomyMesh.profile(guide.kind).primary.any {
         it in setOf(MusclePart.LAT,MusclePart.TRAPEZIUS,MusclePart.HAMSTRING) }) -55f else 55f }
     var angle by rememberSaveable(guide.key) { mutableFloatStateOf(defaultAngle) }
-    var showTrajectory by rememberSaveable(guide.key) { mutableStateOf(true) }
+    var showTrajectory by rememberSaveable(guide.key) { mutableStateOf(false) }
     var large by rememberSaveable(guide.key) { mutableStateOf(false) }
     val progress=rememberMotionClock(guide.key,playing,speed)
     val phase by remember(progress) { derivedStateOf { MotionEngine.phase(progress.floatValue) } }
@@ -105,7 +105,7 @@ private val DemoBackground = Color(0xFFEDF0E9)
                 Box {
                     AnatomySurface(guide,progress,angle,showTrajectory,if(large)Modifier.fillMaxWidth().height(largeSceneHeight)
                         else Modifier.fillMaxWidth().aspectRatio(1.32f))
-                    Text("肌肉分区示范",Modifier.align(Alignment.TopStart).padding(14.dp),color=Blue,
+                    Text("动作示范",Modifier.align(Alignment.TopStart).padding(14.dp),color=Blue,
                         style=MaterialTheme.typography.labelSmall)
                     TextButton(onClick={large=!large},modifier=Modifier.align(Alignment.TopEnd)) {
                         Text(if(large)"缩小" else "放大 ↗")
@@ -135,8 +135,8 @@ private val DemoBackground = Color(0xFFEDF0E9)
                     }
                 }
             }
-            Text("主要区域 · ${guide.focus}",color=Color(0xFFC35F48),style=MaterialTheme.typography.bodySmall)
-            Text("红色：主要区域  ·  金色：辅助区域  ·  青线：移动路径",color=Muted,style=MaterialTheme.typography.labelSmall)
+            Text("目标肌群 · ${guide.focus}",color=Color(0xFFC35F48),style=MaterialTheme.typography.bodySmall)
+            Text("珊瑚色：主要肌群  ·  浅金色：辅助肌群",color=Muted,style=MaterialTheme.typography.labelSmall)
             Text("可慢放、拖动和切换视角。肌群分区与路径为教学示意，不代表个人实际肌肉激活强度。",color=Muted,
                 style=MaterialTheme.typography.labelSmall)
         }
@@ -218,8 +218,13 @@ private val DemoBackground = Color(0xFFEDF0E9)
                         if (!readOnly) TextButton(enabled = !busy, onClick = edit) { Text("编辑个人设置") }
                     }
                     DetailDisclosure("示范说明与动作管理") {
-                        Text("原创矢量示范展示常见动作路径，按可控、舒适的幅度练习。替代动作的器械、阻力和动作模式可能不同。",
+                        Text("骨骼绑定人体展示常见动作路径，按可控、舒适的幅度练习。替代动作的器械、阻力和动作模式可能不同。",
                             color = Muted, style = MaterialTheme.typography.bodySmall)
+                        Text("人体基础模型：Quaternius · Universal Base Characters，CC0 1.0；动作、器械与肌群分区由独练制作。",
+                            color = Muted, style = MaterialTheme.typography.labelSmall)
+                        TextButton(onClick = { runCatching { uri.openUri("https://quaternius.com/packs/universalbasecharacters.html") } }) {
+                            Text("模型来源与许可 ↗")
+                        }
                         TextButton(onClick = { runCatching { uri.openUri("https://www.acefitness.org/resources/everyone/exercise-library/") } }) {
                             Text("技术参考 · ACE 动作库 ↗")
                         }

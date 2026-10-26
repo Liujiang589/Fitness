@@ -44,16 +44,19 @@ object AnatomyProjection {
         val depth=FloatArray(visible.size*3)
         val yaw=camera.angle*PI.toFloat()/180f
         val light=(camera.direction*.7f+MotionPoint(-cos(yaw)*.35f,.85f,-sin(yaw)*.35f)).unit()
-        fun color(part: MusclePart, normal: MotionPoint): Int {
+        fun color(part: MusclePart, normal: MotionPoint, material: BodyMaterial): Int {
             val rgb=when {
-                part==MusclePart.EQUIPMENT -> 0x39463E
-                part in profile.primary -> 0xD25C45
-                part in profile.secondary -> 0xC59A50
-                part==MusclePart.SURFACE -> 0xCDD3C8
-                else -> 0xA3B3A8
+                material==BodyMaterial.EYES -> 0x85858A
+                material==BodyMaterial.BROWS -> 0x969699
+                material==BodyMaterial.SHORTS -> 0x272B32
+                material==BodyMaterial.SHOES -> 0x3D424B
+                material==BodyMaterial.METAL -> 0x8F949B
+                part==MusclePart.EQUIPMENT -> 0x596373
+                part in profile.primary -> 0xD55F5C
+                part in profile.secondary -> 0xD4B681
+                else -> 0xD8D8DA
             }
-            val brightness=(.43f+.57f*max(0f,normal.dot(light))) *
-                if(part in profile.primary) (.94f+.06f*sin(amount*PI.toFloat())) else 1f
+            val brightness=.64f+.36f*max(0f,normal.dot(light))
             fun channel(c: Int)=(c*brightness).roundToInt().coerceIn(0,255)
             return (255 shl 24) or (channel((rgb shr 16) and 255) shl 16) or
                 (channel((rgb shr 8) and 255) shl 8) or channel(rgb and 255)
@@ -61,7 +64,7 @@ object AnatomyProjection {
         visible.forEachIndexed { index, face -> listOf(face.a,face.b,face.c).forEachIndexed { n,v ->
             val p=camera.point(v.point,width,height,padding,header)
             xy[index*6+n*2]=p.first; xy[index*6+n*2+1]=p.second
-            colors[index*3+n]=color(face.part,v.normal)
+            colors[index*3+n]=color(v.muscle ?: face.part,v.normal,face.material)
             depth[index*3+n]=-camera.depth(v.point)/4f
         } }
         return AnatomyFrame(xy,colors,depth)

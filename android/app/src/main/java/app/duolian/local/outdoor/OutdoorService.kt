@@ -23,7 +23,8 @@ data class OutdoorLive(val running: Boolean = false, val daily: Boolean = false,
     val run: OutdoorRun? = null, val signal: OutdoorSignal = OutdoorSignal.IDLE, val error: String? = null,
     val speedMps: Double? = null, val accuracy: Float? = null, val busy: Boolean = false,
     val commandId: Long = 0, val stationary: Boolean = false, val filteredFixes: Int = 0,
-    val stepReadAt: Long? = null, val fixAgeMs: Long? = null, val mapPosition: RoutePoint? = null)
+    val stepReadAt: Long? = null, val fixAgeMs: Long? = null, val mapPosition: RoutePoint? = null,
+    val preparation: OutdoorPreparation? = null, val preparationReady: Boolean = false)
 
 /** Foreground session tracking; no boot receiver, silent GPS restart or always-on location. */
 class OutdoorService : Service(), SensorEventListener, LocationListener {
@@ -33,6 +34,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     private val sensors by lazy { getSystemService(SensorManager::class.java) }
     private val locations by lazy { getSystemService(LocationManager::class.java) }
     private val recorder = OutdoorRecorder()
+    private var preparation: OutdoorPreparation? = null
     private var registered = false
     private var stepReadAt: Long? = null
     private var locating = false
@@ -60,6 +62,10 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
                     if (stopped || !loaded) return@withLock
                     try {
                         recorder.advance(wall(), tick())
+                        if(preparation!=null && (preparation!!.expired(tick()) || !canLocate(this@OutdoorService) || !gpsEnabled())) {
+                            preparation=null;error="定位准备已结束，请到室外重新开始。"
+                            syncResources()
+                        }
                         if (registered && !canCount(this@OutdoorService)) {
                             sensors.unregisterListener(this@OutdoorService); registered = false; daily = false
                             saveOptions()
@@ -88,6 +94,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         val action = intent?.action
         if (action !in ACTIONS) { if (!loaded) stopSelf(); return START_NOT_STICKY }
         val incomingId = intent?.getLongExtra("command_id", 0) ?: 0
+        val expectedRunId = intent?.getStringExtra("expected_run_id")
         try {
             if (action in START_ACTIONS) {
                 require(action == DAILY_ON || canLocate(this)) { "请在系统设置中允许精确定位" }
@@ -120,19 +127,41 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
                         check(recorder.run == null) { "已有未结束运动，请先继续或结束它" }
                         require(gpsEnabled()) { "请先打开手机定位，再到室外开始" }
                         changed = true
+                        preparation=null
                         recorder.start(if (action == WALK) OutdoorKind.WALK else OutdoorKind.RUN, wall(), tick())
                     }
+                    PREPARE_WALK, PREPARE_RUN -> {
+                        check(recorder.run==null) { "请先继续或结束当前运动" }
+                        require(gpsEnabled()) { "请先打开手机定位，再到室外准备" }
+                        preparation=OutdoorPreparation(if(action==PREPARE_WALK)OutdoorKind.WALK else OutdoorKind.RUN,tick())
+                    }
+                    CANCEL_PREPARE -> preparation=null
                     RESUME -> {
                         require(gpsEnabled()) { "请先打开手机定位" }
                         changed = true
                         recorder.resume(wall(), tick())
                     }
-                    PAUSE -> { changed = true; recorder.pause(wall(), tick()) }
+                    PAUSE -> {
+                        check(expectedRunId==null || recorder.run?.id==expectedRunId) { "运动记录已变化，请重新操作" }
+                        changed = true; recorder.pause(wall(), tick())
+                    }
                     FINISH -> {
+                        check(expectedRunId == null || recorder.run?.id == expectedRunId) {
+                            "运动记录已变化，请重新确认要保存的记录"
+                        }
                         changed = true
                         // Commit first: a failed save must leave the recoverable record in memory.
                         recorder.finished(wall(), tick())?.let { store.save(it) }
                         recorder.clear()
+                    }
+                    DISCARD -> {
+                        check(expectedRunId != null && recorder.run?.id == expectedRunId) {
+                            "运动记录已变化，请重新确认要放弃的记录"
+                        }
+                        changed = true
+                        recorder.discard(expectedRunId) {
+                            store.discard(it)
+                        }
                     }
                     DAILY_ON -> {
                         require(canCount(this@OutdoorService) && hasCounter(this@OutdoorService)) {
@@ -149,8 +178,11 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
                 syncResources(); persist(force = true); commandId = incomingId; publish()
                 if (canKeepForeground()) foregroundCurrent() else shutdown()
             } catch (e: Exception) {
+                if(action==PREPARE_WALK || action==PREPARE_RUN)preparation=null
                 if (changed) recorder.pause(wall(), tick())
-                error = e.message ?: "无法记录，请检查权限后重试"
+                error = if (action == DISCARD && changed && recorder.run != null)
+                    "放弃失败，本次记录已保留并暂停。请重试，或选择结束并保存。"
+                else e.message ?: "无法记录，请检查权限后重试"
                 runCatching { syncResources(); persist(force = true) }
                 commandId = incomingId; publish()
                 if (canKeepForeground()) runCatching { foregroundCurrent() }.onFailure { shutdown() }
@@ -165,11 +197,11 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         locations.isProviderEnabled(LocationManager.GPS_PROVIDER)
 
     private fun syncResources() {
-        val wantsGps = recorder.run?.status == OutdoorStatus.ACTIVE && canLocate(this) && gpsEnabled()
+        val wantsGps = (recorder.run?.status == OutdoorStatus.ACTIVE || preparation!=null) && canLocate(this) && gpsEnabled()
         if (wantsGps && !locating) {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
                 throw SecurityException("精确定位权限已关闭，请重新授权")
-            locations.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 0f, this, Looper.getMainLooper())
+            locations.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this, Looper.getMainLooper())
             locating = true
         } else if (!wantsGps && locating) { locations.removeUpdates(this); locating = false }
         val wantsCounter = (daily || recorder.run != null) && canCount(this) && hasCounter(this)
@@ -205,6 +237,12 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
 
     override fun onLocationChanged(location: Location) {
         scope.launch { lock.withLock {
+            if(!stopped && preparation!=null) {
+                preparation=preparation?.accept(location.latitude,location.longitude,
+                    if(location.hasAccuracy())location.accuracy else 999f,location.elapsedRealtimeNanos/1_000_000,
+                    tick(),wall())
+                publish();return@withLock
+            }
             if (stopped || recorder.run?.status != OutdoorStatus.ACTIVE) return@withLock
             try {
                 recorder.fix(location.latitude, location.longitude, if (location.hasAccuracy()) location.accuracy else 999f,
@@ -218,6 +256,11 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     override fun onProviderDisabled(provider: String) {
         if (provider != LocationManager.GPS_PROVIDER) return
         scope.launch { lock.withLock {
+            if(preparation!=null) {
+                preparation=null;error="手机定位已关闭，请开启后重新准备。"
+                runCatching { syncResources() };publish()
+                if(!canKeepForeground())shutdown()
+            }
             if (recorder.run?.status == OutdoorStatus.ACTIVE) {
                 recorder.pause(wall(), tick(), OutdoorSignal.LOCATION_OFF)
                 runCatching { syncResources(); persist(force = true) }.onFailure { failStorage() }
@@ -247,7 +290,8 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         live.value = OutdoorLive(!stopped, daily, recorder.run, recorder.signal, error,
             recorder.speedMps, recorder.accuracy, commandId = commandId, stationary = recorder.stationary,
             filteredFixes = recorder.filteredFixes, stepReadAt = stepReadAt.takeIf { registered },
-            fixAgeMs = recorder.lastFixTick?.let { (tick() - it).coerceAtLeast(0) },mapPosition = recorder.mapPosition)
+            fixAgeMs = recorder.lastFixTick?.let { (tick() - it).coerceAtLeast(0) },mapPosition = recorder.mapPosition,
+            preparation=preparation,preparationReady=preparation?.ready(tick())==true)
     }
     private fun notification(): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java)
@@ -255,20 +299,22 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         val r = recorder.run
         val builder = NotificationCompat.Builder(this, CHANNEL).setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setContentTitle(r?.let { "独练 · ${it.kind.label}${if (it.status == OutdoorStatus.PAUSED) "已暂停" else "记录中"}" }
-                ?: "独练 · 日常计步已开启")
+                ?: if(preparation!=null)"独练 · 准备${preparation!!.kind.label}" else "独练 · 日常计步已开启")
             .setContentText(r?.let { "%.2f km · %d 分钟 · %s".format(it.distanceMeters / 1000, it.elapsedMs / 60000, recorder.signal.title) }
-                ?: "日常计步不使用 GPS · 点击查看")
+                ?: if(preparation!=null)"正在准备GPS，尚未开始计时或保存路线" else "日常计步不使用 GPS · 点击查看")
             .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
         if (r?.status == OutdoorStatus.ACTIVE) builder.addAction(0, "暂停运动", PendingIntent.getService(this, 1,
             Intent(this, OutdoorService::class.java).setAction(PAUSE), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
         if (r != null) builder.addAction(0, "查看 / 结束", open)
+        else if(preparation!=null)builder.addAction(0,"取消准备",PendingIntent.getService(this,3,
+            Intent(this,OutdoorService::class.java).setAction(CANCEL_PREPARE),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
         else builder.addAction(0, "关闭计步", PendingIntent.getService(this, 2,
             Intent(this, OutdoorService::class.java).setAction(DAILY_OFF), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
         return builder.build()
     }
-    private fun canKeepForeground() = daily && registered || recorder.run != null && canLocate(this)
+    private fun canKeepForeground() = daily && registered || (recorder.run != null || preparation!=null) && canLocate(this)
     private fun foregroundCurrent() {
-        var types = if (Build.VERSION.SDK_INT >= 29 && recorder.run != null && canLocate(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
+        var types = if (Build.VERSION.SDK_INT >= 29 && (recorder.run != null || preparation!=null) && canLocate(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
         if (Build.VERSION.SDK_INT >= 34 && registered && canCount(this)) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
         if (Build.VERSION.SDK_INT >= 34 && types == 0) { shutdown(); return }
         if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIFICATION, notification(), types)
@@ -288,9 +334,12 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         const val WALK = "outdoor.WALK"; const val RUN = "outdoor.RUN"
         const val PAUSE = "outdoor.PAUSE"; const val RESUME = "outdoor.RESUME"
         const val FINISH = "outdoor.FINISH"; const val DAILY_ON = "outdoor.DAILY_ON"
+        const val DISCARD = "outdoor.DISCARD"
         const val DAILY_OFF = "outdoor.DAILY_OFF"
-        private val START_ACTIONS = setOf(WALK, RUN, RESUME, DAILY_ON)
-        private val ACTIONS = START_ACTIONS + setOf(PAUSE, FINISH, DAILY_OFF)
+        const val PREPARE_WALK="outdoor.PREPARE_WALK";const val PREPARE_RUN="outdoor.PREPARE_RUN"
+        const val CANCEL_PREPARE="outdoor.CANCEL_PREPARE"
+        private val START_ACTIONS = setOf(WALK, RUN, RESUME, DAILY_ON,PREPARE_WALK,PREPARE_RUN)
+        private val ACTIONS = START_ACTIONS + setOf(PAUSE, FINISH, DISCARD, DAILY_OFF,CANCEL_PREPARE)
         private const val CHECKPOINT_MS = 5000L
         private const val CHANNEL = "outdoor-tracking"; private const val NOTIFICATION = 2301
         private const val PREFS = "outdoor-options"
@@ -299,8 +348,9 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         fun canCount(c: Context) = Build.VERSION.SDK_INT < 29 ||
             c.checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
         fun hasCounter(c: Context) = c.getSystemService(SensorManager::class.java).getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null
-        fun send(c: Context, action: String, commandId: Long = 0) {
+        fun send(c: Context, action: String, commandId: Long = 0, expectedRunId: String? = null) {
             val intent = Intent(c, OutdoorService::class.java).setAction(action).putExtra("command_id", commandId)
+                .putExtra("expected_run_id", expectedRunId)
             if (action in START_ACTIONS) c.startForegroundService(intent) else c.startService(intent)
         }
     }

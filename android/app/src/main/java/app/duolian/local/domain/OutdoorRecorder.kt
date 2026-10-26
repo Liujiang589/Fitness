@@ -100,6 +100,16 @@ class OutdoorRecorder {
         resetFixes(); signal = OutdoorSignal.IDLE
     }
 
+    /** Caller serializes commands and callbacks. Delete the checkpoint before releasing recovery state. */
+    suspend fun discard(expectedId: String, deleteCheckpoint: suspend (String) -> Unit) {
+        val current = checkNotNull(run) { "本次运动已结束，请返回查看当前状态" }
+        check(current.id == expectedId && current.status != OutdoorStatus.FINISHED) {
+            "运动记录已变化，请重新确认要放弃的记录"
+        }
+        deleteCheckpoint(current.id)
+        clear()
+    }
+
     fun enableStepCounting() { run = run?.copy(stepCounting = true) }
 
     fun stepCounter(counter: Long, wall: Long, tick: Long, sampleTick: Long = tick) {

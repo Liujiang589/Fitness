@@ -53,7 +53,7 @@ import app.duolian.local.domain.*
         Surface(color = Page, shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(target.name, Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                    Text(target.name, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                     Text(target.equipment, color = Blue, style = MaterialTheme.typography.labelSmall)
                 }
                 Text(option.reason, color = Ink, style = MaterialTheme.typography.bodyMedium)

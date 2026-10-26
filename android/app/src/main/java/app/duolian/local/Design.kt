@@ -37,15 +37,20 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-internal val Ink = Color(0xFF20251F)
-internal val Muted = Color(0xFF72786D)
+internal val Ink = Color(0xFF1D1D1F)
+internal val Muted = Color(0xFF6E6E73)
 // Semantic legacy name retained so every existing chart and form shares the new palette.
-internal val Blue = Color(0xFF466329)
-internal val Page = Color(0xFFF5F5F0)
-internal val PaleBlue = Color(0xFFECF1DF)
-internal val Volt = Color(0xFFD5F578)
-internal val Night = Color(0xFF20261F)
-internal val Hairline = Color(0xFFE6E8DE)
+internal val Blue = Color(0xFF0066CC)
+internal val Page = Color(0xFFF5F5F7)
+internal val PaleBlue = Color(0xFFEAF2FF)
+internal val Volt = Color(0xFFF5F5F7)
+internal val Night = Color(0xFF1D1D1F)
+internal val Hairline = Color(0xFFDCDCE0)
+internal val OnDarkMuted = Color(0xFFC7C7CC)
+internal val DarkSeparator = Color(0xFF48484A)
+internal val ArtSurface = Color(0xFFF1F3F6)
+internal val SuccessTint = Color(0xFFEDF8F0)
+internal val Success = Color(0xFF248A3D)
 internal fun kg(g: Long) = String.format(Locale.US, "%.3f", g / 1000.0).trimEnd('0').trimEnd('.')
 internal fun number(n: Double) = String.format(Locale.US, "%.1f", n)
 internal fun clock(ms: Long): String {
@@ -57,22 +62,21 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
 
 @Composable internal fun Panel(modifier: Modifier = Modifier, color: Color = Color.White,
     content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = color,
-        border = BorderStroke(1.dp, if (color == Color.White) Hairline else Color.Transparent)) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = color) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
 @Composable internal fun Section(title: String, action: String? = null, onClick: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Ink)
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Ink)
         if (action != null) TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 4.dp)) { Text(action) }
     }
 }
 
 @Composable internal fun Stat(value: String, label: String, modifier: Modifier = Modifier, accent: Color = Ink) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = accent)
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = accent)
         Text(label, style = MaterialTheme.typography.labelMedium, color = Muted)
     }
 }
@@ -89,7 +93,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
 
 @Composable internal fun AppSymbol(kind: Int, color: Color, modifier: Modifier = Modifier.size(23.dp)) {
     Canvas(modifier) {
-        val w = size.width; val h = size.height; val s = w * .075f
+        val w = size.width; val h = size.height; val s = w * .065f
         fun line(x: Float,y: Float,a: Float,b: Float) = drawLine(color, Offset(w*x,h*y), Offset(w*a,h*b),s,StrokeCap.Round)
         when(kind) {
             0 -> { drawRoundRect(color,Offset(w*.2f,h*.18f),Size(w*.6f,h*.72f),CornerRadius(w*.1f),style=Stroke(s));
@@ -141,7 +145,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
         val ox = (size.width - unit) / 2
         val oy = (size.height - unit) / 2
         fun point(x: Float, y: Float) = Offset(ox + unit * x, oy + unit * y)
-        val neutral = Color(0xFFC3CAB9)
+        val neutral = Color(0xFFB5BDC7)
         drawCircle(PaleBlue, unit * .46f, point(.5f, .5f))
         drawCircle(neutral, unit * .075f, point(.5f, .13f))
         fun limb(x: Float, y: Float, a: Float, b: Float, width: Float, color: Color) =
@@ -198,7 +202,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = singleLine,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink, fontWeight = FontWeight.SemiBold),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink),
                 cursorBrush = SolidColor(Blue),
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                 modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
@@ -226,9 +230,9 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
     Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(13.dp),
         color = if (selected) accent else Color.White,
         border = if (selected) null else BorderStroke(1.dp, Hairline)) {
-        Text(text, Modifier.padding(horizontal = 15.dp, vertical = 9.dp),
+        Text(text, Modifier.heightIn(min = 44.dp).wrapContentHeight().padding(horizontal = 16.dp, vertical = 10.dp),
             color = if (selected) Color.White else Ink,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             style = MaterialTheme.typography.labelLarge, maxLines = 1)
     }
 }
@@ -240,11 +244,11 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
         color = if (selected) PaleBlue else Color.White) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                Text(title, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                     style = MaterialTheme.typography.bodyLarge)
                 subtitle?.let { Text(it, color = Muted, style = MaterialTheme.typography.labelSmall) }
             }
-            if (selected) Text("✓", color = Blue, fontWeight = FontWeight.Bold)
+            if (selected) Text("✓", color = Blue, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -254,7 +258,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
     accent: Color = Ink, tint: Color = Page) {
     Column(modifier.clip(RoundedCornerShape(16.dp)).background(tint).padding(vertical = 12.dp, horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
             color = accent, maxLines = 1)
         Text(label, style = MaterialTheme.typography.labelSmall, color = Muted, maxLines = 1)
     }
@@ -262,8 +266,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
 
 /** White rounded container that groups setting rows. */
 @Composable internal fun GroupCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = Color.White,
-        border = BorderStroke(1.dp, Hairline)) {
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Color.White) {
         Column(content = content)
     }
 }

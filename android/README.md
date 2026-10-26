@@ -1,6 +1,30 @@
-# 独练 Android 工程（V1.13）
+# 独练 Android 工程（V1.19）
 
 包名 `app.duolian.local`，Kotlin + Jetpack Compose + Room，支持 Android 8.0（API 26）及以上。
+
+## V1.19 走跑体验
+
+GPS准备与3秒倒数，地图/仪表同屏，取消与结束确认，计时状态隔离与路线分块更新。239项JVM、构建及5项设备交互检查通过，最终Release已在连接手机覆盖安装。[使用](../docs/V1_19_OUTDOOR.md)、[验证](../docs/V1_19_VERIFICATION.md)。
+
+## V1.18 深蹲手臂修正
+
+修正肘外翻、前臂下折与躯干前倾时的腕部扭转；231项JVM、Lint与Release构建通过，真机显示待验收。[修复](../docs/V1_18_ARMS.md)、[验证](../docs/V1_18_VERIFICATION.md)。
+
+## V1.17 完整人体
+
+40个动作换用完整CC0骨骼人体，配深色训练短裤与鞋；改善器械、手掌与肌群颜色。运行时人体资源约246KiB；229项JVM、13项HTTP与构建通过，真机显示待验收。[模型](../docs/V1_17_MODEL.md)、[验证](../docs/V1_17_VERIFICATION.md)。
+
+## V1.16 平滑人偶
+
+去掉凸起肌肉/关节球/面部细节，改为连续体表与柔和肌群色块，轨迹默认关闭。228项JVM、13项HTTP及构建通过，真机待验收。[模型](../docs/V1_16_MODEL.md)、[验证](../docs/V1_16_VERIFICATION.md)。
+
+## V1.15 界面与字体
+
+浅灰白与蓝色、系统字体层级、浅色导航、白色分组和图文分区。228项JVM、13项HTTP及构建通过；设备测试仅编译，真机显示待验收。[设计](../docs/V1_15_DESIGN.md)、[验证](../docs/V1_15_VERIFICATION.md)。
+
+## V1.14 首页与走跑细节
+
+移除首页默认动作卡，增加放弃走跑记录与检查点清理，整理空状态、成功提示与操作入口。228项JVM、13项HTTP、Lint和构建通过，设备测试仅编译。[指南](../docs/V1_14_GUIDE.md)、[验证](../docs/V1_14_VERIFICATION.md)。
 
 ## V1.13 肌群与走跑质量
 
@@ -46,7 +70,7 @@ Repository初始化仅种入动作库，不再自动创建基础计划。训练�
 
 ## 当前版本命名
 
-versionName为1.13，关于页展示V1.13；内部versionCode27，继续使用现有签名。对外文件为独练-V1.13.apk。规则见[VERSIONING.md](../docs/VERSIONING.md)。
+versionName为1.19，关于页展示V1.19；内部versionCode33，继续使用现有签名。对外文件为独练-V1.19.apk。规则见[VERSIONING.md](../docs/VERSIONING.md)。
 
 ## 0.12.0 信息分层与高清配图
 

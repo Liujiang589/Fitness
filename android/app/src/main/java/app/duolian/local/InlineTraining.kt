@@ -57,7 +57,7 @@ import kotlinx.coroutines.delay
         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(if (set.effectiveKind == SetKind.WORK) "${index + 1}" else set.effectiveKind.short,
-                    Modifier.width(27.dp), color = Blue, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                    Modifier.width(27.dp), color = Blue, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelSmall)
                 CompactSetField(weight, { weight = it }, "kg", "第${index + 1}组重量", enabled && !set.done,
                     Modifier.weight(1f), KeyboardType.Decimal)
                 Text("×", color = Muted)

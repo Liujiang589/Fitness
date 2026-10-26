@@ -26,6 +26,14 @@ class OutdoorStore(private val db: LocalDatabase) {
         OutdoorMath.validate(run); dao.put(MetaRow(RUN + run.id, Codec.encodeToString(run)))
     }
     suspend fun delete(id: String) = dao.deleteMetadata(RUN + id)
+    suspend fun discard(id: String) = db.withTransaction {
+        dao.metadata(RUN + id)?.let { value ->
+            check(Codec.decodeFromString<OutdoorRun>(value).status != OutdoorStatus.FINISHED) {
+                "这次运动已经保存，请在运动足迹中管理"
+            }
+        }
+        dao.deleteMetadata(RUN + id)
+    }
     suspend fun clearBaseline() = dao.deleteMetadata(BASELINE)
     suspend fun steps(next: StepBaseline): Long = db.withTransaction {
         val before = dao.metadata(BASELINE)?.let { Codec.decodeFromString<StepBaseline>(it) }

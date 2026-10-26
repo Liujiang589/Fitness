@@ -76,6 +76,26 @@ class ExerciseMotionTest {
         }
     }
 
+    @Test fun bodySquatKeepsRelaxedForwardArmsInsteadOfFlaringAndDroopingElbows() {
+        (0..60).forEach { frame ->
+            val pose=MotionEngine.sample(MotionKind.BODY_SQUAT,frame/60f)
+            for((shoulderJoint,elbowJoint,wristJoint) in listOf(
+                Triple(MotionJoint.SHOULDER_L,MotionJoint.ELBOW_L,MotionJoint.WRIST_L),
+                Triple(MotionJoint.SHOULDER_R,MotionJoint.ELBOW_R,MotionJoint.WRIST_R))) {
+                val shoulder=pose[shoulderJoint];val elbow=pose[elbowJoint];val wrist=pose[wristJoint]
+                val upper=elbow-shoulder;val lower=wrist-elbow
+                assertTrue("elbow should only bend softly",upper.unit().dot(lower.unit())>.94f)
+                assertTrue("elbow flares sideways",abs(elbow.z-shoulder.z)<.015f)
+                assertTrue("forearm drops away from shoulder level",abs(elbow.y-shoulder.y)<.09f)
+                assertTrue("arms should reach forwards",wrist.x-shoulder.x>.65f)
+                assertTrue("hands should stay near shoulder height",abs(wrist.y-shoulder.y)<.07f)
+            }
+            assertEquals(pose[MotionJoint.ELBOW_L].x,pose[MotionJoint.ELBOW_R].x,.0001f)
+            assertEquals(pose[MotionJoint.ELBOW_L].y,pose[MotionJoint.ELBOW_R].y,.0001f)
+            assertEquals(pose[MotionJoint.ELBOW_L].z,-pose[MotionJoint.ELBOW_R].z,.0001f)
+        }
+    }
+
     @Test fun pullupGripStaysOnBarAndChinClearsIt() {
         val start=MotionEngine.sample(MotionKind.PULLUP,0f);val top=MotionEngine.sample(MotionKind.PULLUP,1f)
         assertTrue((start[MotionJoint.WRIST_L]-top[MotionJoint.WRIST_L]).length()<.001f)

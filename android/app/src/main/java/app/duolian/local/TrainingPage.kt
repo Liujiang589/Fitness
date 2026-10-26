@@ -43,7 +43,7 @@ import kotlinx.coroutines.delay
                 color=Muted,style=MaterialTheme.typography.labelSmall)
             Row(verticalAlignment=Alignment.CenterVertically){
                 ExerciseArt(exercises.find { it.id == m.exerciseId }?.muscle ?: "全身", Modifier.size(44.dp))
-                Text(m.name,Modifier.padding(start=10.dp).weight(1f,fill=false),fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+                Text(m.name,Modifier.padding(start=10.dp).weight(1f,fill=false),fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.titleMedium)
                 m.supersetGroup?.let{g->Surface(color=PaleBlue,shape=RoundedCornerShape(8.dp),modifier=Modifier.padding(start=8.dp)){
                     Text("超级组 ${('A'.code+g-1).toChar()}",Modifier.padding(horizontal=7.dp,vertical=3.dp),color=Blue,style=MaterialTheme.typography.labelSmall)}}
                 Spacer(Modifier.weight(1f))
@@ -85,13 +85,13 @@ import kotlinx.coroutines.delay
                 Text(if(s.pausedAt==null)"正在训练" else "训练已暂停",Modifier.padding(start=8.dp).weight(1f),color=Volt,style=MaterialTheme.typography.labelLarge)
                 TextButton(enabled=!busy,onClick=vm::togglePause){Text(if(s.pausedAt==null)"暂停" else "继续",color=Volt)}
             }
-            Text(s.title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=Color.White)
+            Text(s.title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold,color=Color.White)
             val resting = Rules.restMs(s,now) > 0
-            Text(if (resting) "放松呼吸，稍作休息" else "专注眼前这一组", color=Color(0xFFD5DACF),
+            Text(if (resting) "放松呼吸，稍作休息" else "专注眼前这一组", color=OnDarkMuted,
                 style=MaterialTheme.typography.bodyMedium)
             Text(if (resting) clock(Rules.restMs(s,now)) else clock(Rules.elapsedMs(s,now)),
-                style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.Bold,color=Volt)
-            Text(if (resting) "休息剩余" else "本次训练用时", color=Color(0xFFD5DACF),
+                style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.SemiBold,color=Volt)
+            Text(if (resting) "休息剩余" else "本次训练用时", color=OnDarkMuted,
                 style=MaterialTheme.typography.labelMedium)
             val completed=s.movements.sumOf{it.sets.count{set->set.done}};val total=s.movements.sumOf{it.sets.size}
             var showStats by rememberSaveable(s.id) { mutableStateOf(false) }
@@ -103,9 +103,9 @@ import kotlinx.coroutines.delay
                 StatTile(number(Rules.volumeKg(s)),"训练容量 kg",Modifier.weight(1f),tint=Color.White)
                 StatTile(clock(Rules.elapsedMs(s,now)),"总用时",Modifier.weight(1f),tint=Color.White)
             }
-            LinearProgressIndicator(progress={if(total==0)0f else completed.toFloat()/total},modifier=Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),color=Volt,trackColor=Color(0xFF48523F))
+            LinearProgressIndicator(progress={if(total==0)0f else completed.toFloat()/total},modifier=Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),color=Volt,trackColor=DarkSeparator)
             Text(next?.let { "接下来 · ${it.movement.name} · 第 ${it.index + 1} 组" } ?: "全部组已完成，随时保存这次训练。",
-                color=Color(0xFFD5DACF),style=MaterialTheme.typography.bodySmall)
+                color=OnDarkMuted,style=MaterialTheme.typography.bodySmall)
             if(Rules.restMs(s,now)>0)OutlinedButton(onClick={vm.skipRest()},modifier=Modifier.fillMaxWidth()){Text("跳过休息",color=Volt)}
         }
 }

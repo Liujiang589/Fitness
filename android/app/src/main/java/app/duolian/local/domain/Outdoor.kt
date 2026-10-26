@@ -18,7 +18,7 @@ import kotlin.math.*
 @Serializable data class StepBaseline(val date: String, val counter: Long, val boot: Int)
 
 object OutdoorMath {
-    const val MAX_POINTS = 14400 // At a two-second interval: at least eight hours of accepted fixes.
+    const val MAX_POINTS = 14400 // Accepted route points; interval depends on movement and GPS quality.
     fun distance(a: RoutePoint, b: RoutePoint): Double {
         val lat = Math.toRadians(b.latitude - a.latitude)
         val lon = Math.toRadians(b.longitude - a.longitude)

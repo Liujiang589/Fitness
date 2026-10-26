@@ -139,7 +139,7 @@ private val FoodSpecSaver = listSaver<FoodSpec?, Any>(
                         } else {
                             Surface(color = PaleBlue, shape = RoundedCornerShape(18.dp)) {
                                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Text(spec.name, fontWeight = FontWeight.Bold)
+                                    Text(spec.name, fontWeight = FontWeight.SemiBold)
                                     Text(spec.preparation, color = Blue, style = MaterialTheme.typography.bodySmall)
                                     Text("按此状态的可食部克数估算，生熟重量不自动互换。", color = Muted, style = MaterialTheme.typography.bodySmall)
                                     Text(spec.source, color = Muted, style = MaterialTheme.typography.labelSmall)
@@ -182,7 +182,7 @@ private val FoodSpecSaver = listSaver<FoodSpec?, Any>(
                     if (preview != null) {
                         Surface(color = PaleBlue, shape = RoundedCornerShape(18.dp)) {
                             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("已按这份重量计算", color = Blue, fontWeight = FontWeight.Bold)
+                                Text("已按这份重量计算", color = Blue, fontWeight = FontWeight.SemiBold)
                                 Text("预计摄入 ≈ ${number(preview.calories)} kcal", color = Ink,
                                     style = MaterialTheme.typography.titleMedium)
                                 NutritionBreakdown(preview.protein, preview.carbs, preview.fat)

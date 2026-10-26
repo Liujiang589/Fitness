@@ -156,7 +156,7 @@ import java.util.Locale
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Page)
                             .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
                             verticalAlignment = Alignment.CenterVertically) {
-                            Text("%02d".format(index + 1), color = Blue, fontWeight = FontWeight.Bold,
+                            Text("%02d".format(index + 1), color = Blue, fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(28.dp))
                             Text(exercises.find { it.id == id }?.name ?: "已删除动作",
                                 Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)

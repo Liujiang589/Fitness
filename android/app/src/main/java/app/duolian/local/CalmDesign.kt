@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
                 verticalAlignment = Alignment.CenterVertically) {
                 Text(if (expanded) "收起$title" else "查看$title", color = Blue,
                     style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                Text(if (expanded) "−" else "＋", color = Blue)
+                Text(if (expanded) "⌃" else "⌄", color = Muted)
             }
         }
         if (expanded) content()
@@ -40,15 +40,13 @@ import androidx.compose.ui.unit.dp
 
 /** Atmospheric editorial photography, never an exercise or portion-size instruction. */
 @Composable internal fun LifestyleBanner(@DrawableRes image: Int, title: String, subtitle: String) {
-    Surface(shape = RoundedCornerShape(24.dp), color = Color(0xFFF0EFE6)) {
-        Box(Modifier.fillMaxWidth().heightIn(min = 176.dp)) {
-            CachedPhoto(image, Modifier.matchParentSize())
-            Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(
-                Color(0xFFF5F3E9), Color(0xFFF5F3E9).copy(alpha = .9f), Color.Transparent))))
-            Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(.55f).padding(18.dp),
+    Surface(shape = RoundedCornerShape(20.dp), color = Color.White) {
+        Column {
+            CachedPhoto(image, Modifier.fillMaxWidth().height(128.dp))
+            Column(Modifier.fillMaxWidth().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(title, color = Ink, style = MaterialTheme.typography.titleLarge)
-                Text(subtitle, color = Ink, style = MaterialTheme.typography.bodySmall)
+                Text(subtitle, color = Muted, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

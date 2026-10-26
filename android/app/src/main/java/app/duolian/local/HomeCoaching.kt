@@ -36,8 +36,8 @@ import java.time.LocalDate
             ExerciseMotionCanvas(guide, remember { mutableFloatStateOf(.46f) },
                 Modifier.size(88.dp).clip(RoundedCornerShape(18.dp)), detailed=false, showTrajectory=false)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("先看懂，再练起来", color = Blue, style = MaterialTheme.typography.labelMedium)
-                Text(exercise.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text("当前动作示范", color = Blue, style = MaterialTheme.typography.labelMedium)
+                Text(exercise.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
                 Text(ExerciseCoaching.cue(guide), color = Muted, style = MaterialTheme.typography.bodySmall)
                 Text("动态示范与要领 ›", color = Blue, style = MaterialTheme.typography.labelMedium)
             }
@@ -50,14 +50,14 @@ import java.time.LocalDate
         Surface(onClick = nutrition, color = androidx.compose.ui.graphics.Color.White,
             shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("好好吃饭", fontWeight = FontWeight.Bold)
+                Text("好好吃饭", fontWeight = FontWeight.SemiBold)
                 Text("饮食手记 ›", color = Muted, style = MaterialTheme.typography.bodySmall)
             }
         }
         Surface(onClick = body, color = androidx.compose.ui.graphics.Color.White,
             shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("关心身体", fontWeight = FontWeight.Bold)
+                Text("关心身体", fontWeight = FontWeight.SemiBold)
                 Text("留下身体记录 ›", color = Muted, style = MaterialTheme.typography.bodySmall)
             }
         }

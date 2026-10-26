@@ -5,10 +5,11 @@ import kotlin.math.*
 enum class MusclePart { SURFACE, PECTORAL, LAT, TRAPEZIUS, ERECTOR, DELTOID, BICEPS, TRICEPS,
     FOREARM, ABDOMINAL, GLUTE, QUADRICEPS, HAMSTRING, CALF, EQUIPMENT }
 data class MuscleProfile(val primary: Set<MusclePart>, val secondary: Set<MusclePart>)
-data class AnatomyVertex(val point: MotionPoint, val normal: MotionPoint)
-data class AnatomyFace(val a: AnatomyVertex, val b: AnatomyVertex, val c: AnatomyVertex, val part: MusclePart)
+data class AnatomyVertex(val point: MotionPoint, val normal: MotionPoint, val muscle: MusclePart? = null)
+data class AnatomyFace(val a: AnatomyVertex, val b: AnatomyVertex, val c: AnatomyVertex, val part: MusclePart,
+    val material: BodyMaterial = BodyMaterial.SKIN)
 
-/** Original articulated surface illustration. Muscle surfaces follow the pose, not an EMG simulation. */
+/** Rigged human and authored equipment. Muscle regions are teaching aids, not an EMG simulation. */
 object AnatomyMesh {
     private fun cross(a: MotionPoint, b: MotionPoint) = MotionPoint(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x)
     fun profile(kind: MotionKind): MuscleProfile {
@@ -58,9 +59,9 @@ object AnatomyMesh {
     }
 
     fun build(pose: MotionPose, kind: MotionKind, detailed: Boolean = true): List<AnatomyFace> {
-        val faces = ArrayList<AnatomyFace>(5000)
-        val sides = if (detailed) 12 else 8
-        val rings = if (detailed) 7 else 5
+        val faces = ArrayList<AnatomyFace>(18000)
+        val sides = if (detailed) 24 else 14
+        val rings = if (detailed) 12 else 8
         fun vertex(p: MotionPoint, n: MotionPoint) = AnatomyVertex(p,n.unit())
         fun patch(grid: List<List<AnatomyVertex>>, part: MusclePart) {
             for (i in 0 until grid.lastIndex) for (j in 0 until sides) {
@@ -89,90 +90,51 @@ object AnatomyMesh {
             val up=(b-a).unit(); val (side,front)=frame(up,MotionPoint(1f,0f))
             ellipsoid((a+b)*.5f,up,side,front,radius,(b-a).length()*.5f+radius*.15f,radius,part)
         }
-        val pelvis=pose[MotionJoint.PELVIS]; val chest=pose[MotionJoint.CHEST]
-        val up=(chest-pelvis).unit()
-        val side=(pose[MotionJoint.SHOULDER_L]-pose[MotionJoint.SHOULDER_R]).unit()
-        val supine=kind in setOf(MotionKind.BENCH,MotionKind.DB_BENCH,MotionKind.INCLINE_BENCH,MotionKind.FLY,
-            MotionKind.LYING_TRICEPS,MotionKind.BRIDGE,MotionKind.CRUNCH,MotionKind.REVERSE_CRUNCH)
-        val front=cross(up,side).unit()*(if(supine)-1f else 1f)
-        val torso=chest-pelvis
-        // Continuous tapered trunk, rather than rods and exposed spherical joints.
-        val sections=listOf(Triple(0f,.155f,.10f),Triple(.13f,.165f,.105f),Triple(.33f,.125f,.085f),
-            Triple(.55f,.170f,.105f),Triple(.80f,.215f,.115f),Triple(1f,.175f,.09f),Triple(1.09f,.065f,.06f))
-        patch(sections.map { (t,w,d) -> (0 until sides).map { j -> val a=2*PI.toFloat()*j/sides
-            vertex(pelvis+torso*t+side*(cos(a)*w)+front*(sin(a)*d),side*cos(a)+front*sin(a))
-        } },MusclePart.SURFACE)
-        // Sculpted torso muscle surfaces: paired pecs/lats, abdominal blocks and spinal columns.
-        for (s in listOf(-1f,1f)) {
-            ellipsoid(pelvis+torso*.79f+side*(s*.100f)+front*.108f,up,side,front,.104f,.080f,.025f,MusclePart.PECTORAL)
-            ellipsoid(pelvis+torso*.61f+side*(s*.125f)-front*.082f,up,side,front,.078f,.172f,.042f,MusclePart.LAT)
-            ellipsoid(chest-up*.045f+side*(s*.075f)-front*.074f,up,side,front,.095f,.090f,.031f,MusclePart.TRAPEZIUS)
-            ellipsoid(pelvis+torso*.39f+side*(s*.037f)-front*.085f,up,side,front,.029f,.19f,.024f,MusclePart.ERECTOR)
-            ellipsoid(pelvis-up*.035f+side*(s*.082f)-front*.070f,up,side,front,.100f,.12f,.067f,MusclePart.GLUTE)
-            for (row in 0..2) ellipsoid(pelvis+torso*(.32f+row*.13f)+side*(s*.043f)+front*.089f,
-                up,side,front,.039f,.043f,.013f,MusclePart.ABDOMINAL)
+        faces.addAll(AthleteBody.build(pose,kind))
+        fun cylinder(a: MotionPoint,b: MotionPoint,radius: Float,material: BodyMaterial=BodyMaterial.SKIN) {
+            val axis=(b-a).unit();val (s,f)=frame(axis,MotionPoint(0f,1f))
+            fun face(x: AnatomyVertex,y: AnatomyVertex,z: AnatomyVertex) {
+                faces+=AnatomyFace(x,y,z,MusclePart.EQUIPMENT,material)
+            }
+            for(j in 0 until sides) {
+                val t=2*PI.toFloat()*j/sides;val u=2*PI.toFloat()*(j+1)/sides
+                val n=s*cos(t)+f*sin(t);val m=s*cos(u)+f*sin(u)
+                val v0=vertex(a+n*radius,n);val v1=vertex(b+n*radius,n)
+                val v2=vertex(b+m*radius,m);val v3=vertex(a+m*radius,m)
+                face(v0,v1,v2);face(v0,v2,v3)
+                face(vertex(a,axis*(-1f)),vertex(a+m*radius,axis*(-1f)),vertex(a+n*radius,axis*(-1f)))
+                face(vertex(b,axis),vertex(b+n*radius,axis),vertex(b+m*radius,axis))
+            }
         }
-        fun limb(a: MotionPoint,b: MotionPoint,preferred: MotionPoint,widths: List<Float>) {
-            val axis=(b-a).unit(); val (s,f)=frame(axis,preferred)
-            patch(widths.mapIndexed { i,w -> val t=i.toFloat()/widths.lastIndex
-                (0 until sides).map { j -> val angle=2*PI.toFloat()*j/sides
-                    vertex(a+(b-a)*t+s*(w*cos(angle))+f*(w*.86f*sin(angle)),s*cos(angle)+f*(sin(angle)/.86f))
-                }
-            },MusclePart.SURFACE)
+        fun box(center: MotionPoint,axis: MotionPoint,s: MotionPoint,f: MotionPoint,
+            halfLength: Float,halfWidth: Float,halfDepth: Float) {
+            val basis=listOf(axis,s,f);val sizes=listOf(halfLength,halfWidth,halfDepth)
+            for(d in 0..2)for(sign in listOf(-1f,1f)) {
+                val normal=basis[d]*sign;val c=center+normal*sizes[d]
+                val u=basis[(d+1)%3]*sizes[(d+1)%3];val v=basis[(d+2)%3]*sizes[(d+2)%3]
+                val points=listOf(c+u+v,c-u+v,c-u-v,c+u-v).map{vertex(it,normal)}
+                faces+=AnatomyFace(points[0],points[1],points[2],MusclePart.EQUIPMENT,BodyMaterial.PAD)
+                faces+=AnatomyFace(points[0],points[2],points[3],MusclePart.EQUIPMENT,BodyMaterial.PAD)
+            }
         }
-        fun belly(a: MotionPoint,b: MotionPoint,preferred: MotionPoint,sign: Float,part: MusclePart,
-            width: Float,thickness: Float,at: Float = .48f,portion: Float = .36f,offset: Float = .05f) {
-            val axis=(b-a).unit(); val (s,f)=frame(axis,preferred)
-            ellipsoid(a+(b-a)*at+f*(sign*offset),axis,s,f,width,(b-a).length()*portion,thickness,part)
-        }
-        for (left in listOf(true,false)) {
-            val shoulder=pose[if(left)MotionJoint.SHOULDER_L else MotionJoint.SHOULDER_R]
-            val elbow=pose[if(left)MotionJoint.ELBOW_L else MotionJoint.ELBOW_R]
-            val wrist=pose[if(left)MotionJoint.WRIST_L else MotionJoint.WRIST_R]
-            val hip=pose[if(left)MotionJoint.HIP_L else MotionJoint.HIP_R]
-            val knee=pose[if(left)MotionJoint.KNEE_L else MotionJoint.KNEE_R]
-            val ankle=pose[if(left)MotionJoint.ANKLE_L else MotionJoint.ANKLE_R]
-            val toe=pose[if(left)MotionJoint.TOE_L else MotionJoint.TOE_R]
-            // Keep anterior thigh/shin surfaces on the knee-facing side, independent of torso lean.
-            val thighFront=MotionPoint(hip.y-knee.y,knee.x-hip.x,0f).unit()
-            val shinFront=MotionPoint(knee.y-ankle.y,ankle.x-knee.x,0f).unit()
-            limb(shoulder,elbow,front,listOf(.071f,.080f,.077f,.064f,.045f))
-            limb(elbow,wrist,front,listOf(.046f,.064f,.056f,.041f,.031f))
-            limb(hip,knee,thighFront,listOf(.085f,.108f,.102f,.079f,.056f))
-            limb(knee,ankle,shinFront,listOf(.054f,.073f,.065f,.042f,.035f))
-            ellipsoid(elbow,(wrist-elbow).unit(),side,front,.044f,.048f,.041f,MusclePart.SURFACE)
-            ellipsoid(knee,(ankle-knee).unit(),side,front,.055f,.058f,.049f,MusclePart.SURFACE)
-            ellipsoid(shoulder,up,side,front,.078f,.088f,.075f,MusclePart.DELTOID)
-            belly(shoulder,elbow,front,1f,MusclePart.BICEPS,.050f,.038f,offset=.057f)
-            belly(shoulder,elbow,front,-1f,MusclePart.TRICEPS,.052f,.032f,offset=.056f)
-            belly(elbow,wrist,front,1f,MusclePart.FOREARM,.043f,.024f,at=.38f,offset=.038f)
-            belly(hip,knee,thighFront,1f,MusclePart.QUADRICEPS,.080f,.043f,portion=.39f,offset=.074f)
-            belly(hip,knee,thighFront,-1f,MusclePart.HAMSTRING,.070f,.036f,portion=.37f,offset=.068f)
-            belly(knee,ankle,shinFront,-1f,MusclePart.CALF,.058f,.038f,at=.37f,portion=.31f,offset=.048f)
-            val handAxis=(wrist-elbow).unit(); val (hs,hf)=frame(handAxis,front)
-            ellipsoid(wrist+handAxis*.026f,handAxis,hs,hf,.041f,.065f,.027f,MusclePart.SURFACE)
-            val footAxis=(toe-ankle).unit(); val (fs,ff)=frame(footAxis,MotionPoint(0f,1f))
-            ellipsoid((ankle+toe)*.5f,footAxis,fs,ff,.055f,(toe-ankle).length()*.62f,.043f,MusclePart.SURFACE)
-        }
-        tube(chest,pose[MotionJoint.NECK]+up*.03f,.052f,MusclePart.SURFACE)
-        val head=pose[MotionJoint.HEAD]
-        ellipsoid(head,up,side,front,.086f,.120f,.100f,MusclePart.SURFACE)
-        ellipsoid(head+front*.097f-up*.008f,up,side,front,.024f,.031f,.029f,MusclePart.SURFACE)
-        for(s in listOf(-1f,1f)) ellipsoid(head+side*(s*.087f),up,side,front,.013f,.030f,.021f,MusclePart.SURFACE)
         // Original equipment geometry shares the mesh depth ordering with the anatomical surface.
         for (prop in pose.props) {
             val a=prop.a; val b=prop.b; val axis=(b-a).unit()
             when(prop.kind) {
                 MotionPropKind.BARBELL,MotionPropKind.DUMBBELL -> {
-                    tube(a,b,.018f)
+                    cylinder(a,b,.014f,BodyMaterial.METAL)
                     val (s,f)=frame(axis,MotionPoint(0f,1f))
                     val r=if(prop.kind==MotionPropKind.BARBELL).17f else .105f
-                    for(c in listOf(a+axis*.03f,b-axis*.03f)) ellipsoid(c,axis,s,f,r,.033f,r,MusclePart.EQUIPMENT)
+                    for(c in listOf(a+axis*.03f,b-axis*.03f)) cylinder(c-axis*.035f,c+axis*.035f,r)
                 }
                 MotionPropKind.BENCH -> {
                     val (s,f)=frame(axis,MotionPoint(0f,1f))
-                    ellipsoid((a+b)*.5f,axis,s,f,.235f,(b-a).length()*.5f,.065f,MusclePart.EQUIPMENT)
-                    tube(a.copy(y=.03f),a,.025f); tube(b.copy(y=.03f),b,.025f)
+                    box((a+b)*.5f,axis,s,f,(b-a).length()*.5f,.155f,.045f)
+                    for(end in listOf(a,b)) {
+                        val ground=end.copy(y=.035f)
+                        cylinder(ground,end,.023f,BodyMaterial.METAL)
+                        cylinder(ground-s*.22f,ground+s*.22f,.025f,BodyMaterial.METAL)
+                    }
                 }
                 MotionPropKind.MAT -> Unit
                 MotionPropKind.CABLE,MotionPropKind.ROPE -> tube(a,b,.008f)

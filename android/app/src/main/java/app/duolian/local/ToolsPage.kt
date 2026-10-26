@@ -85,7 +85,7 @@ private fun mmss(ms: Long): String {
                 Text("↗", color = Muted, style = MaterialTheme.typography.titleLarge)
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleSmall)
                 Text(subtitle, color = Muted, style = MaterialTheme.typography.labelSmall)
             }
         }
@@ -110,7 +110,7 @@ private fun mmss(ms: Long): String {
 
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("组间计时", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+            Text("组间计时", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f))
             Text(if (running) "计时中" else "${seconds}s", color = Blue,
                 style = MaterialTheme.typography.labelLarge)
@@ -121,7 +121,7 @@ private fun mmss(ms: Long): String {
                 modifier = Modifier.size(118.dp), color = Blue) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(mmss(if (running) remaining else seconds * 1000L),
-                        style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                     Text(if (running) "剩余" else "准备", color = Muted, style = MaterialTheme.typography.labelSmall)
                 }
             }
@@ -181,7 +181,7 @@ private fun mmss(ms: Long): String {
 
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("间歇训练", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+            Text("间歇训练", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f))
             Text("HIIT", color = Muted, style = MaterialTheme.typography.labelLarge)
         }
@@ -243,13 +243,13 @@ private fun mmss(ms: Long): String {
                     modifier = Modifier.size(128.dp), color = accent) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("${phase?.remainingSeconds ?: 0}", style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.Bold, color = accent)
+                            fontWeight = FontWeight.SemiBold, color = accent)
                         Text(kind.label, color = accent, style = MaterialTheme.typography.labelMedium)
                     }
                 }
                 Column(Modifier.padding(start = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(if ((phase?.round ?: 0) > 0) "第 ${phase!!.round}/${template.rounds} 轮" else "${template.rounds} 轮",
-                        fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
                     Text("${template.workSeconds}s 训练 / ${template.restSeconds}s 休息", color = Muted,
                         style = MaterialTheme.typography.bodySmall)
                     OutlinedButton(onClick = { finish(template) }) { Text("结束训练") }
@@ -265,7 +265,7 @@ private fun mmss(ms: Long): String {
     var reps by rememberSaveable { mutableIntStateOf(5) }
     val oneRm = Progression.oneRm((kilos * 1000).roundToLong().coerceAtLeast(0), reps)
     Panel {
-        Text("1RM 估算", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        Text("1RM 估算", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Stepper("重量", kg(oneRmWeight(kilos)), "kg", Modifier.weight(1f),
                 onMinus = { kilos = (kilos - 2.5).coerceAtLeast(2.5) },
@@ -275,7 +275,7 @@ private fun mmss(ms: Long): String {
                 onPlus = { reps = (reps + 1).coerceAtMost(30) })
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(kg(oneRm), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = Blue)
+            Text(kg(oneRm), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.SemiBold, color = Blue)
             Text(" kg", color = Muted, modifier = Modifier.padding(bottom = 8.dp))
         }
         Text("按 $reps 次 × ${kg(oneRmWeight(kilos))} kg 估算", color = Muted,
@@ -304,11 +304,11 @@ private fun oneRmWeight(kilos: Double): Long = (kilos * 1000).roundToLong()
     var target by rememberSaveable { mutableStateOf(60.0) }
     val loading = PlateMath.perSide(target)
     Panel {
-        Text("杠铃片计算", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        Text("杠铃片计算", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("${number(target)} kg", style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold, color = Ink)
+                    fontWeight = FontWeight.SemiBold, color = Ink)
                 Text("含 ${number(PlateMath.BAR_KG)} kg 空杆", color = Muted,
                     style = MaterialTheme.typography.labelSmall)
             }
@@ -325,7 +325,7 @@ private fun oneRmWeight(kilos: Double): Long = (kilos * 1000).roundToLong()
                 loading.forEach { item ->
                     Column(Modifier.clip(RoundedCornerShape(12.dp)).background(PaleBlue).padding(horizontal = 14.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${number(item.plateKg)}", fontWeight = FontWeight.Bold, color = Blue)
+                        Text("${number(item.plateKg)}", fontWeight = FontWeight.SemiBold, color = Blue)
                         Text("×${item.perSide}", color = Muted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
@@ -344,7 +344,7 @@ private fun oneRmWeight(kilos: Double): Long = (kilos * 1000).roundToLong()
         Text(label, color = Muted, style = MaterialTheme.typography.labelSmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onMinus, contentPadding = PaddingValues(4.dp)) { Text("−") }
-            Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+            Text(value, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             TextButton(onClick = onPlus, contentPadding = PaddingValues(4.dp)) { Text("+") }
         }
@@ -384,7 +384,7 @@ private fun oneRmWeight(kilos: Double): Long = (kilos * 1000).roundToLong()
 @Composable private fun HiitHistoryCard(runs: List<HiitRun>) {
     val format = remember { DateTimeFormatter.ofPattern("MM-dd HH:mm") }
     Panel {
-        Text("最近的间歇训练", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+        Text("最近的间歇训练", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge)
         runs.sortedByDescending { it.endedAt }.take(5).forEach { r ->
             val stamp = Instant.ofEpochMilli(r.startedAt).atZone(ZoneId.systemDefault()).format(format)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

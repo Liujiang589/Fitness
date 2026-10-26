@@ -23,3 +23,23 @@ tools/__pycache__/
 /public-download-site/
 /独练-V1.12.apk
 !/独练-V1.13-安装包.zip
+/独练-V1.14.apk
+/独练-V1.15.apk
+/独练-V1.16.apk
+/独练-V1.17.apk
+/独练-V1.18.apk
+!/独练-V1.19-安装包.zip
+# 交付目录与历史构建产物不入库
+/独练-V*-发布包/
+/独练-*-上传包/
+/独练-*-上传包.zip
+/duolian_v*.apk
+/duolian_v*_docs.zip
+/独练-V1.2.apk
+/独练-V1.12-发布包/
+# 私人文档与旧上传包不进入仓库
+/*.docx
+/独练-*-EdgeOne上传包/
+/独练-*-上传包.zip
+/独练-*上传包.zip
+/独练-*上传包/
