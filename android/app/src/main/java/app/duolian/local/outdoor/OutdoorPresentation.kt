@@ -22,14 +22,20 @@ fun OutdoorLive.metrics(fallback: OutdoorRun): OutdoorMetrics {
 }
 fun OutdoorLive.displaySignal(id: String)=when {
     run?.id!=id -> OutdoorSignal.INTERRUPTED
-    signal==OutdoorSignal.GOOD && (fixAgeMs ?: Long.MAX_VALUE)>10000 -> OutdoorSignal.WEAK
+    signal==OutdoorSignal.GOOD && (fixAgeMs ?: Long.MAX_VALUE)>10000 ->
+        if(run?.status==OutdoorStatus.ACTIVE && place!=null) OutdoorSignal.APPROXIMATE else OutdoorSignal.WEAK
+    run?.status==OutdoorStatus.ACTIVE && place!=null && signal in setOf(OutdoorSignal.SEARCHING,
+        OutdoorSignal.WEAK, OutdoorSignal.INACCURATE) -> OutdoorSignal.APPROXIMATE
     else -> signal
 }
-data class OutdoorMapFrame(val points: List<RoutePoint>,val tracking: Boolean,val position: RoutePoint?)
+data class OutdoorMapFrame(val points: List<RoutePoint>,val tracking: Boolean,val position: RoutePoint?,
+    val positionGcj02: Boolean = false)
 fun OutdoorLive.mapFrame(fallback: OutdoorRun): OutdoorMapFrame {
     val current=run?.takeIf{it.id==fallback.id} ?: fallback
     val tracking=running && run?.id==fallback.id && run.status==OutdoorStatus.ACTIVE
-    return OutdoorMapFrame(current.points,tracking,mapPosition.takeIf {
+    val precise = mapPosition.takeIf {
         tracking && signal==OutdoorSignal.GOOD && (fixAgeMs ?: Long.MAX_VALUE)<=10000
-    })
+    }
+    val approximate = place?.takeIf { tracking && run?.id == fallback.id && precise == null }
+    return OutdoorMapFrame(current.points,tracking,precise ?: approximate?.point,approximate?.gcj02 == true)
 }

@@ -49,7 +49,8 @@ private object StreetMapConsent {
     }
 }
 
-@Composable internal fun StreetRouteMap(points: List<RoutePoint>, tracking: Boolean, currentPosition: RoutePoint? = null, modifier: Modifier = Modifier, fillHeight: Boolean = false) {
+@Composable internal fun StreetRouteMap(points: List<RoutePoint>, tracking: Boolean, currentPosition: RoutePoint? = null, modifier: Modifier = Modifier, fillHeight: Boolean = false,
+    currentIsGcj02: Boolean = false) {
     val context = LocalContext.current
     val agreed by remember { StreetMapConsent.flow(context) }.collectAsStateWithLifecycle()
     var consentDialog by remember { mutableStateOf(false) }
@@ -81,10 +82,10 @@ private object StreetMapConsent {
         else -> Column(modifier,verticalArrangement = Arrangement.spacedBy(4.dp)) {
             // Release the inline renderer while the fullscreen renderer is displayed.
             if (!expanded) key(retry) {
-                NativeStreetMap(points, tracking, if(fillHeight)Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(310.dp),currentPosition) { retry++ }
+                NativeStreetMap(points, tracking, if(fillHeight)Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(310.dp),currentPosition,currentIsGcj02) { retry++ }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("高德地图 · ${when { points.isEmpty() -> "开始运动后显示当前位置"; tracking -> "蓝色路线随运动延伸"; else -> "已保存的运动路线" }}",
+                Text("高德地图 · ${when { points.isEmpty() && currentPosition!=null -> "位置精度由浅蓝范围圈表示"; points.isEmpty() -> "定位就绪后显示当前位置"; tracking -> "蓝色路线随运动延伸"; else -> "已保存的运动路线" }}",
                     Modifier.weight(1f), color = Muted, style = MaterialTheme.typography.labelSmall)
                 TextButton(onClick = { expanded = true }) { Text("放大地图") }
                 TextButton(onClick = { StreetMapConsent.set(context, false) }) { Text("关闭地图",color=Muted) }
@@ -99,7 +100,7 @@ private object StreetMapConsent {
                     TextButton(onClick = { expanded = false }) { Text("‹ 返回运动记录") }
                     Text("运动路线", style = MaterialTheme.typography.titleMedium)
                 }
-                key(retry) { NativeStreetMap(points, tracking, Modifier.fillMaxSize(),currentPosition) { retry++ } }
+                key(retry) { NativeStreetMap(points, tracking, Modifier.fillMaxSize(),currentPosition,currentIsGcj02) { retry++ } }
             }
         }
     }
@@ -115,7 +116,7 @@ private object StreetMapConsent {
 
 /** Own every native resource in one composition; do not use the SDK's separate location client. */
 @Composable private fun NativeStreetMap(points: List<RoutePoint>, tracking: Boolean,
-    modifier: Modifier, currentPosition: RoutePoint?, retry: () -> Unit) {
+    modifier: Modifier, currentPosition: RoutePoint?, currentIsGcj02: Boolean, retry: () -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var loaded by remember { mutableStateOf(false) }
@@ -149,9 +150,9 @@ private object StreetMapConsent {
         delay(20000)
         if (!loaded) slow = true
     }
-    LaunchedEffect(controller, points, currentPosition, tracking, follow, loaded, fitRequest) {
+    LaunchedEffect(controller, points, currentPosition, currentIsGcj02, tracking, follow, loaded, fitRequest) {
         if (loaded) slow = false
-        if (controller != null) runCatching { controller.render(points, tracking, follow, fitRequest * 2 + if (loaded) 1 else 0,currentPosition) }
+        if (controller != null) runCatching { controller.render(points, tracking, follow, fitRequest * 2 + if (loaded) 1 else 0,currentPosition,currentIsGcj02) }
             .onFailure { error = true }
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -199,6 +200,7 @@ private class StreetMapController(context: Context) {
     private var precisionCircle: Circle?=null
     private var lastCameraPoint: RoutePoint?=null
     private var lastMarkerPoint: RoutePoint?=null
+    private var lastMarkerGcj02=false
     private var markerAnimation: ValueAnimator?=null
     private var previousFit=-1
     private var resumed=false
@@ -228,7 +230,7 @@ private class StreetMapController(context: Context) {
         canvas.drawCircle(center,center,center*.68f,paint)
         return BitmapDescriptorFactory.fromBitmap(bitmap)
     }
-    fun render(points: List<RoutePoint>,tracking: Boolean,follow: Boolean,fitRequest: Int,currentPosition: RoutePoint?) {
+    fun render(points: List<RoutePoint>,tracking: Boolean,follow: Boolean,fitRequest: Int,currentPosition: RoutePoint?,currentIsGcj02: Boolean) {
         if(destroyed)return
         val changes=route.update(points)
         if(changes.reset) {
@@ -244,9 +246,19 @@ private class StreetMapController(context: Context) {
         }
         if(points.isNotEmpty() && start==null)start=map.addMarker(MarkerOptions().position(coordinate(points.first()))
             .anchor(.5f,.5f).title("起点").icon(markerIcon(0xFF32A66A.toInt())))
-        val point=currentPosition.takeIf{tracking} ?: points.lastOrNull() ?: return
-        val position=if(point in converted)converted.getValue(point) else
-            checkNotNull(converter.coord(LatLng(point.latitude,point.longitude)).convert())
+        val point=currentPosition.takeIf{tracking} ?: points.lastOrNull()
+        if(point==null) {
+            markerAnimation?.cancel();end?.remove();end=null
+            precisionCircle?.remove();precisionCircle=null
+            lastMarkerPoint=null;lastCameraPoint=null
+            return
+        }
+        val gcj02=tracking && currentPosition!=null && currentIsGcj02
+        val position = when {
+            gcj02 -> LatLng(point.latitude,point.longitude)
+            point in converted -> converted.getValue(point)
+            else -> checkNotNull(converter.coord(LatLng(point.latitude,point.longitude)).convert())
+        }
         if(end==null)end=map.addMarker(MarkerOptions().position(position).anchor(.5f,.5f)
             .icon(markerIcon(0xFF007AFF.toInt())).zIndex(10f))
         end?.title=if(!tracking)"终点" else if(currentPosition!=null)"当前位置" else "最近路线点"
@@ -256,11 +268,11 @@ private class StreetMapController(context: Context) {
                 .strokeWidth(1.5f).strokeColor(0x55007AFF).fillColor(0x16007AFF))
             else circle.radius=point.accuracy.toDouble()
         } else {precisionCircle?.remove();precisionCircle=null}
-        if(lastMarkerPoint!=point) {
+        if(lastMarkerPoint!=point || lastMarkerGcj02!=gcj02) {
             markerAnimation?.cancel()
             val previous=lastMarkerPoint;val from=end!!.position
             val moving=from.latitude!=position.latitude || from.longitude!=position.longitude
-            val smooth=moving && tracking && previous!=null && previous.segment==point.segment && point.time-previous.time in 1..8000
+            val smooth=moving && tracking && previous!=null && lastMarkerGcj02==gcj02 && previous.segment==point.segment && point.time-previous.time in 1..8000
             if(smooth)markerAnimation=ValueAnimator.ofFloat(0f,1f).apply {
                 duration=750;interpolator=LinearInterpolator()
                 addUpdateListener { animation ->
@@ -270,12 +282,13 @@ private class StreetMapController(context: Context) {
                     end?.position=frame;precisionCircle?.center=frame
                 };start()
             } else {end?.position=position;precisionCircle?.center=position}
-            lastMarkerPoint=point
+            lastMarkerPoint=point;lastMarkerGcj02=gcj02
         }
         val requested=previousFit!=fitRequest
         val moved=lastCameraPoint?.let{OutdoorMath.distance(it,point)>=2} ?: true
         if(follow && tracking && (moved || requested)) {
-            val zoom=if(lastCameraPoint==null)17f else map.cameraPosition.zoom.coerceIn(15f,19f)
+            val zoom=if(lastCameraPoint==null)when {point.accuracy>200->14f;point.accuracy>50->16f;else->17f}
+                else map.cameraPosition.zoom.coerceIn(14f,19f)
             map.stopAnimation();map.animateCamera(CameraUpdateFactory.newLatLngZoom(position,zoom),750L,null)
             lastCameraPoint=point
         } else if(requested) {

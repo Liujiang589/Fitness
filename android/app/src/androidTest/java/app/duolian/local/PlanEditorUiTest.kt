@@ -3,6 +3,7 @@ package app.duolian.local
 import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import app.duolian.local.domain.*
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.*
@@ -91,5 +92,28 @@ class PlanEditorUiTest {
         ui.onNodeWithText("取消").performClick()
         ui.onNodeWithText("放弃修改").performClick()
         ui.runOnIdle { assertTrue(dismissed) }
+    }
+    @Test fun submittingAnInvalidFormClearsTheDialogsOwnInputFocus() {
+        scene()
+        field("plan-name").performClick().performTextInput("草稿")
+        field("plan-name").assertIsFocused()
+        ui.onNodeWithTag("plan-save").performClick()
+        field("plan-name").assertIsNotFocused()
+        ui.onNodeWithText("先选择至少一个训练动作。").assertIsDisplayed()
+    }
+    @Test fun draftAndOriginalPlanIdentitySurviveStateRestoration() {
+        val original = Plan(name = "旧计划", exerciseIds = listOf("move-1"), restSeconds = 90,
+            scheme = SetScheme.PYRAMID, weekdays = listOf(5))
+        var saved: Plan? = null
+        val restoration = StateRestorationTester(ui)
+        restoration.setContent { DuolianTheme { PlanForm(original, exercises, {}) { saved = it } } }
+        field("plan-name").performTextReplacement("新的训练名")
+        ui.onNodeWithText("＋ 添加动作").performClick()
+        ui.onNodeWithText("动作2").performClick()
+        ui.onNodeWithTag("plan-save").performClick()
+        restoration.emulateSavedInstanceStateRestore()
+        field("plan-name").assertTextEquals("新的训练名")
+        ui.onNodeWithTag("plan-save").performClick()
+        ui.runOnIdle { assertEquals(original.copy(name = "新的训练名", exerciseIds = listOf("move-1", "move-2")), saved) }
     }
 }

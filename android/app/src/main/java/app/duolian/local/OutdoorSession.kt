@@ -37,7 +37,7 @@ import kotlin.math.roundToLong
 @Composable internal fun OutdoorLiveWorkout(fallback: OutdoorRun,modifier: Modifier=Modifier,
     source: StateFlow<OutdoorLive> = OutdoorService.live,
     mapRenderer: @Composable (OutdoorMapFrame,Modifier)->Unit = { frame,area ->
-        StreetRouteMap(frame.points,frame.tracking,frame.position,area,fillHeight=true)
+        StreetRouteMap(frame.points,frame.tracking,frame.position,area,fillHeight=true,currentIsGcj02=frame.positionGcj02)
     }) {
     var settings by rememberSaveable(fallback.id){mutableStateOf(false)}
     var keepScreen by rememberSaveable{mutableStateOf(false)}
@@ -80,6 +80,9 @@ import kotlin.math.roundToLong
             }
             Text(if(live.run?.id==fallback.id)live.signal.detail else OutdoorSignal.INTERRUPTED.detail,color=Muted)
             live.accuracy?.let{Text("定位精度约 ${it.toInt()} 米",color=Muted)}
+            live.place?.let { hint -> Text("${hint.source} · 位置误差估计约 ${hint.point.accuracy.toInt()} 米",
+                color=Muted,style=MaterialTheme.typography.bodySmall) }
+            live.locationNote?.let { Text(it,color=Muted,style=MaterialTheme.typography.bodySmall) }
             DetailDisclosure("定位、步数与数据说明") {
                 Text("距离来自可靠 GPS 采样。弱信号和暂停造成的缺失路段不补画直线，也不猜测距离。",color=Muted)
                 Text("配速会短时平滑；定位失效时显示—。时长不包含暂停或进程中断时间。",color=Muted)
@@ -148,7 +151,7 @@ import kotlin.math.roundToLong
     // Animate only towards a measured distance; no extrapolation or extra metres are recorded.
     val displayed by animateFloatAsState((meters/1000).toFloat(),tween(650),label="measured distance")
     Column {
-        Text("距离 · 公里",color=Muted,style=MaterialTheme.typography.labelMedium)
+        Text("路线距离 · 公里",color=Muted,style=MaterialTheme.typography.labelMedium)
         Text("%.2f".format(displayed),color=Ink,fontSize=64.sp,lineHeight=74.sp,fontWeight=FontWeight.SemiBold,
             style=MaterialTheme.typography.displayLarge.copy(fontFeatureSettings="tnum"))
     }
@@ -172,15 +175,21 @@ import kotlin.math.roundToLong
 @Composable internal fun OutdoorPreparationScreen(busy: Boolean,modifier: Modifier,start: ()->Unit,cancel: ()->Unit) {
     val live by OutdoorService.live.collectAsStateWithLifecycle()
     val preparation=live.preparation ?: return
+    val context=LocalContext.current
     OutdoorPreparationView(preparation.kind,preparation.startedTick,live.preparationReady,
-        preparation.position?.accuracy,busy,modifier,start,cancel)
+        preparation.position?.accuracy,busy,modifier,start,cancel,allowUnreadyStart=true,
+        place=live.place,locationNote=live.locationNote,
+        canCountSteps=OutdoorService.canCount(context) && OutdoorService.hasCounter(context))
 }
 
 @Composable internal fun OutdoorPreparationView(kind: OutdoorKind,session: Long,ready: Boolean,accuracy: Float?,
-    busy: Boolean,modifier: Modifier=Modifier,start: ()->Unit,cancel: ()->Unit) {
+    busy: Boolean,modifier: Modifier=Modifier,start: ()->Unit,cancel: ()->Unit,
+    allowUnreadyStart: Boolean=false,place: OutdoorPlace?=null,locationNote: String?=null,
+    canCountSteps: Boolean=true) {
     var counting by rememberSaveable(session){mutableStateOf(false)}
     var number by remember(session){mutableIntStateOf(3)}
     val currentReady by rememberUpdatedState(ready)
+    val mayStartWithoutFix by rememberUpdatedState(allowUnreadyStart)
     val begin by rememberUpdatedState(start)
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -189,7 +198,7 @@ import kotlin.math.roundToLong
     }
     LaunchedEffect(counting) {
         if(counting) {
-            for(i in 3 downTo 1) {number=i;delay(1000);if(!currentReady){counting=false;return@LaunchedEffect}}
+            for(i in 3 downTo 1) {number=i;delay(1000);if(!currentReady && !mayStartWithoutFix){counting=false;return@LaunchedEffect}}
             counting=false;begin()
         }
     }
@@ -200,13 +209,23 @@ import kotlin.math.roundToLong
         Box(Modifier.size(154.dp).background(PaleBlue,CircleShape),contentAlignment=Alignment.Center) {
             if(counting)Text("$number",fontSize=88.sp,fontWeight=FontWeight.SemiBold,color=Blue)
             else if(ready)Text("GPS",fontSize=36.sp,fontWeight=FontWeight.SemiBold,color=Blue)
+            else if(place!=null)Text("位置",fontSize=36.sp,fontWeight=FontWeight.SemiBold,color=Blue)
             else CircularProgressIndicator(Modifier.size(54.dp),color=Blue,strokeWidth=3.dp)
         }
-        Text(if(counting)"准备出发" else if(ready)"GPS 已就绪" else "正在寻找 GPS",style=MaterialTheme.typography.titleLarge)
-        Text(if(ready)"定位精度约 ${accuracy?.toInt() ?: "—"} 米" else "请到室外开阔处，首次定位可能需要一些时间。",color=Muted)
+        Text(when {counting->"准备出发";ready->"路线定位已就绪";place!=null->if(place.cached)"已显示最近位置" else "已找到当前位置";
+            allowUnreadyStart->"正在定位，可先出发";else->"正在寻找 GPS"},style=MaterialTheme.typography.titleLarge)
+        Text(when {ready->"位置误差估计约 ${accuracy?.toInt() ?: "—"} 米";place!=null->
+            "${place.source} · 误差估计约 ${place.point.accuracy.toInt()} 米";
+            else->"正在结合可用信号寻找位置。"},color=Muted)
         Text("准备期间不计时、不保存运动。",color=Muted,style=MaterialTheme.typography.bodyMedium)
-        Button(enabled=ready && !busy && !counting,onClick={counting=true},modifier=Modifier.fillMaxWidth().heightIn(min=60.dp)) {
-            Text(if(counting)"倒数出发…" else "开始${kind.label}")
+        if(allowUnreadyStart && !ready)Text(if(canCountSteps)
+            "可以先计时计步，可靠路线就绪后再计算里程。室内可能只有时长和步数。" else
+            "可以先计时，可靠路线就绪后再计算里程。当前计步不可用，请检查身体活动权限或手机是否支持计步。",
+            color=Muted,style=MaterialTheme.typography.bodySmall)
+        locationNote?.let { Text(it,color=Muted,style=MaterialTheme.typography.bodySmall) }
+        Button(enabled=(ready || allowUnreadyStart) && !busy && !counting,onClick={counting=true},modifier=Modifier.fillMaxWidth().heightIn(min=60.dp)) {
+            Text(if(counting)"倒数出发…" else if(ready || !allowUnreadyStart)"开始${kind.label}"
+                else if(canCountSteps)"先开始计时与计步" else "先开始计时")
         }
         OutlinedButton(enabled=!busy,onClick={if(counting)counting=false else cancel()},
             modifier=Modifier.fillMaxWidth().heightIn(min=54.dp)) {Text(if(counting)"取消倒数" else "取消准备")}

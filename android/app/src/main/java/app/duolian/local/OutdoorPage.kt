@@ -11,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.duolian.local.domain.*
 import app.duolian.local.outdoor.OutdoorService
+import app.duolian.local.outdoor.NetworkLocationAid
 import app.duolian.local.outdoor.OutdoorShell
 import app.duolian.local.outdoor.shell
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +51,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.time.LocalDate
 import kotlin.math.*
+
+private const val LOCATION_OPTIONS = "location.options"
 
 class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
     private val store = (app as DuolianApp).outdoor
@@ -175,6 +180,7 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
     var selectedKind by rememberSaveable { mutableStateOf(OutdoorKind.WALK) }
     var preparationRequested by rememberSaveable { mutableStateOf(false) }
     val consentPreferences=remember(context){context.getSharedPreferences("outdoor-consent",0)}
+    var useFusion by rememberSaveable { mutableStateOf(consentPreferences.getBoolean(NetworkLocationAid.CONSENT_KEY,true)) }
     val locationActions=setOf(OutdoorService.WALK,OutdoorService.RUN,OutdoorService.RESUME,
         OutdoorService.PREPARE_WALK,OutdoorService.PREPARE_RUN)
     fun leave() {
@@ -199,6 +205,10 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
         pendingAction?.let { perform(it) }; pendingAction = null
     }
     fun request(action: String) {
+        if (action in locationActions && !consentPreferences.contains(NetworkLocationAid.CONSENT_KEY)) {
+            useFusion=consentPreferences.getBoolean(NetworkLocationAid.CONSENT_KEY,true)
+            consent=action;return
+        }
         val needed = buildList {
             if (action in locationActions && !OutdoorService.canLocate(context)) {
                 add(Manifest.permission.ACCESS_FINE_LOCATION); add(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -258,7 +268,11 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     } } }
                     item { Panel {
-                        Text("今天，想怎么出发？",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold)
+                        Row(verticalAlignment=Alignment.CenterVertically) {
+                            Text("今天，想怎么出发？",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold)
+                            TextButton(onClick={useFusion=consentPreferences.getBoolean(NetworkLocationAid.CONSENT_KEY,true)
+                                consent=LOCATION_OPTIONS},enabled=!working) { Text("定位设置") }
+                        }
                         Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                             OutdoorKind.entries.forEach { kind ->
                                 FilterChip(selected=selectedKind==kind,onClick={selectedKind=kind},
@@ -268,9 +282,9 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
                         Text(if(selectedKind==OutdoorKind.RUN)"找回自己的节奏，专注这一程。" else "轻松走一走，让每一步都有迹可循。",color=Muted)
                         Button(enabled=ready && !working,onClick={
                             val action=if(selectedKind==OutdoorKind.RUN)OutdoorService.PREPARE_RUN else OutdoorService.PREPARE_WALK
-                            if(consentPreferences.getBoolean("gps-v1",false))request(action) else consent=action
+                            request(action)
                         },modifier=Modifier.fillMaxWidth().heightIn(min=60.dp)) { Text("准备${selectedKind.label}") }
-                        Text("先等 GPS 就绪，再倒数出发。准备期间不计时、不生成运动记录。",color=Muted,
+                        Text("定位与出发同步准备，信号较弱时也可先开始计时计步。",color=Muted,
                             style=MaterialTheme.typography.bodySmall)
                     } }
                     item { Panel {
@@ -325,7 +339,7 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
                             }
                         }
                     } }
-                    item { Text("运动定位在你开始后采集，暂停时停止。轨迹记录保存在本机；街道地图由高德联网提供，开启前可查看隐私说明。GPX 和完整备份包含位置，请自行选择分享对象。", color = Muted, style = MaterialTheme.typography.bodySmall) }
+                    item { Text("准备与运动时按需定位，暂停或结束后停止。高德辅助定位可在首次授权时选择，结合 Wi-Fi、基站寻找当前位置；可靠路线单独计算里程。街道地图另行授权，轨迹记录保存在本机。", color = Muted, style = MaterialTheme.typography.bodySmall) }
                 }
                 }
                 active?.let { r ->
@@ -341,12 +355,26 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         consent?.let { action -> AlertDialog(onDismissRequest = { consent = null },
-            title = { Text(if (action == OutdoorService.DAILY_ON) "开启日常计步" else "开启运动路线记录") },
-            text = { Text(if (action == OutdoorService.DAILY_ON) "使用身体活动权限和手机计步传感器统计步数，在通知栏持续提示。不会开启 GPS，可随时关闭。" else
-                "准备时先使用精确定位等待 GPS，不计时、不保存路线。确认开始后记录运动，锁屏或切换应用时通过持续通知继续；取消准备、暂停或结束后停止运动定位。轨迹保存在本机。") },
+            title = { Text(if (action == OutdoorService.DAILY_ON) "开启日常计步" else "选择运动定位方式") },
+            text = { Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Text(if (action == OutdoorService.DAILY_ON) "使用身体活动权限和手机计步传感器统计步数，在通知栏持续提示。不会开启 GPS，可随时关闭。" else
+                    "使用手机精确定位记录路线。可选高德网络辅助，通过 Wi-Fi、基站更快寻找当前位置，室内精度取决于可用信号。信号较弱时也能先计时计步，可靠路线就绪后计算里程。")
+                if(action!=OutdoorService.DAILY_ON) {
+                    Row(verticalAlignment=Alignment.CenterVertically) {
+                        Checkbox(useFusion,{useFusion=it})
+                        Text("使用高德网络辅助定位",style=MaterialTheme.typography.bodyMedium)
+                    }
+                    Text("辅助定位需联网，高德SDK会处理位置信息、附近Wi-Fi/基站、设备及网络信息。取消勾选则仅使用系统定位。准备不保存运动，暂停或结束后停止定位。",color=Muted,
+                        style=MaterialTheme.typography.bodySmall)
+                    TextButton(onClick={context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://lbs.amap.com/pages/privacy/")))}) {
+                        Text("阅读高德隐私政策")
+                    }
+                }
+            } },
             confirmButton = { TextButton(onClick = { consent = null; vm.message.value = null
-                if(action!=OutdoorService.DAILY_ON)consentPreferences.edit().putBoolean("gps-v1",true).apply()
-                request(action) }) { Text("同意并开始") } },
+                if(action!=OutdoorService.DAILY_ON)consentPreferences.edit().putBoolean("gps-v1",true)
+                    .putBoolean(NetworkLocationAid.CONSENT_KEY,useFusion).apply()
+                if(action!=LOCATION_OPTIONS)request(action) }) { Text(if(action==LOCATION_OPTIONS)"保存定位设置" else "同意并开始") } },
             dismissButton = { TextButton(onClick = { consent = null }) { Text("取消") } }) }
         if (exit != null && active != null) WorkoutExitDialog(active, exit!!,
             recording = live.running && live.session?.status == OutdoorStatus.ACTIVE, busy = working || live.busy,

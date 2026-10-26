@@ -6,6 +6,11 @@
 
 | 版本 | 日期 | 主要变化 |
 |---|---|---|
+| V1.23 | 2026-10-26 | 定位SDK依赖修复、辅助定位进程隔离、本地异常诊断 |
+| V1.22 | 2026-10-26 | 可选网络辅助定位，弱信号先开始；网络位置与可靠路线分开处理 |
+| V1.21 | 2026-10-26 | 计划编辑窗口焦点、专业设置摘要与输入错误细节；新增10项输入规则回归 |
+| V1.23 | 2026-10-26 | 换用无缺失类引用的高德组合 SDK；网络辅助定位隔离到独立进程；新增应用内异常诊断 |
+| V1.21 – V1.22 | 2026-10-26 | 计划编辑器细节、户外页与崩溃排查相关的中间版本 |
 | V1.20 | 2026-10-26 | 计划创建与编辑重做：全屏编辑器、常驻入口，保存等待真实结果并提示失败 |
 | V1.19 | 2026-10-26 | 走跑流程重做：准备 → 出发 → 运动 → 暂停 → 回顾；定位采样质量门控；路线分块续记 |
 | V1.18 | 2026-10-26 | 修正深蹲示范的肘部外翻、前臂下折与腕部扭转 |
@@ -26,24 +31,24 @@
 | V1.2 | 2026-10-22 | 改用短版本命名；营养库（USDA 来源）、内联快速记录、界面重做 |
 | 0.2 – 0.12 | 2026-10-20 ~ 22 | 训练核心、HIIT、统计图表、备份 v2、模板库、诊断面板 |
 
-## 当前版本明细（V1.20）
+## 当前版本明细（V1.23）
 
-- **入口**：首页「今天 / 计划库」右侧常驻「＋ 创建计划」；首次使用引导、计划库新建与快捷菜单都进入同一个编辑器。
-- **页面**：改为全屏浅灰分区布局，替代原先塞满设置项的 `AlertDialog`；名称、动作、默认组数次数、可选训练日在前，休息/训练方案/超级组收进进阶设置。
-- **保存**：保存接口等待 Repository 事务真实结果并向编辑器传播失败，不再点击后立即关闭弹窗。
-- **保留**：草稿、编辑既有计划、取消确认、动作排序沿用原数据格式，旧计划不受影响。
-- **回归**：239 项 JVM 测试通过；详见 [docs/V1_20_VERIFICATION.md](docs/V1_20_VERIFICATION.md) 与 [docs/V1_20_PLANS.md](docs/V1_20_PLANS.md)。
+- **SDK 修复**：V1.22 使用的高德组合包里，`com/amap/location/fusion/original/a/a` 引用了未随包分发的 `GnssSoftLocator`；本轮换成逐类扫描无缺失引用的组合包，并删除此前掩盖该问题的 `dontwarn` 规则，新增依赖完整性测试防止再犯。
+- **进程隔离**：网络辅助定位客户端与 APS 服务移入独立的 `:location_aid` 进程，通过 Messenger 只传基本类型位置数据；辅助进程停止、绑定失败或连接死亡时只提示并回退系统定位，不影响计时、系统 GPS、计步与记录。
+- **异常诊断**：两个进程都装了本地异常记录器，「我的 → 异常诊断」可复制信息，Android 8–10 也能查看 Java 异常记录。
+- **回归**：263 项 JVM 测试通过；详见 [docs/V1_23_VERIFICATION.md](docs/V1_23_VERIFICATION.md) 与 [docs/V1_23_STABILITY.md](docs/V1_23_STABILITY.md)。
 
-### 上一版（V1.19）要点
+### 上一版（V1.20）要点
 
-- 走跑流程重做（准备 → 出发 → 运动 → 暂停 → 回顾），定位采样质量门控，路线分块续记。
-- 详见 [docs/V1_19_VERIFICATION.md](docs/V1_19_VERIFICATION.md)。
+- 计划创建与编辑重做为全屏编辑器，首页常驻创建入口，保存等待真实事务结果。
+- 详见 [docs/V1_20_VERIFICATION.md](docs/V1_20_VERIFICATION.md)。
 
 ## 历史版本明细
 
 | 版本 | 文档 |
 |---|---|
-| V1.19 – V1.20 | [V1_19_VERIFICATION](docs/V1_19_VERIFICATION.md)、[V1_20_VERIFICATION](docs/V1_20_VERIFICATION.md) |
+| V1.20 – V1.23 | [V1_20_VERIFICATION](docs/V1_20_VERIFICATION.md)、[V1_23_VERIFICATION](docs/V1_23_VERIFICATION.md) |
+| V1.19 | [V1_19_VERIFICATION](docs/V1_19_VERIFICATION.md)、[V1_20_VERIFICATION](docs/V1_20_VERIFICATION.md) |
 | V1.12 – V1.18 | [V1_12_VERIFICATION](docs/V1_12_VERIFICATION.md)、[V1_13_VERIFICATION](docs/V1_13_VERIFICATION.md)、[V1_14_VERIFICATION](docs/V1_14_VERIFICATION.md)、[V1_15_VERIFICATION](docs/V1_15_VERIFICATION.md)、[V1_16_VERIFICATION](docs/V1_16_VERIFICATION.md)、[V1_17_VERIFICATION](docs/V1_17_VERIFICATION.md)、[V1_18_VERIFICATION](docs/V1_18_VERIFICATION.md) |
 | V1.2 – V1.11 | 见 [docs/README.md](docs/README.md) 的「早期版本」分组 |
 

@@ -189,6 +189,8 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
                 updateState.checking -> "正在检查新版本…"
                 else -> "联网检查新版，训练记录保留在本机"
             },onClick=checkUpdate)
+            HorizontalDivider(color=Page)
+            CrashReportEntry()
         }}
         item { AuthorContactCard() }
     }

@@ -1,7 +1,7 @@
 # 独练 · Android 工程
 
 Kotlin + Jetpack Compose + Room。包名 `app.duolian.local`，`minSdk 26`、`compileSdk/targetSdk 35`，
-当前版本 `versionName 1.20 / versionCode 34`。
+当前版本 `versionName 1.23 / versionCode 37`。
 
 ## 技术栈
 
@@ -23,9 +23,9 @@ app/src/main/java/app/duolian/local/
 │                营养估算、动作示范、体表网格、户外记录、周回顾、更新策略
 ├── data/        Room 数据库与仓储、更新下载、户外轨迹存储
 ├── timer/       训练/组间休息的前台服务
-├── outdoor/     户外记录前台服务
+├── outdoor/     户外记录前台服务、独立进程的网络辅助定位
 └── *.kt         29 个界面与视图模型文件（Compose 单 Activity）
-app/src/test/          22 个单元测试文件（239 项测试）
+app/src/test/          26 个单元测试文件（263 项测试）
 app/src/androidTest/   14 个仪器测试文件（需真机或模拟器）
 app/src/debug/         仅调试源集：户外预览 Activity，不进入 Release 清单
 ```
@@ -84,7 +84,7 @@ Key 从 `android/amap.local.properties`（`AMAP_ANDROID_KEY=<32 位十六进制>
 - `UpdatePolicy` 的限制：只接受 **HTTPS 或私有网段**；`downloadUrl` 必须与清单同源、以 `.apk` 结尾、
   **不能带查询参数**；包名必须是 `app.duolian.local`。
 - 安装前校验下载文件的 SHA-256，并比对 APK 签名证书与已安装应用一致，再校验 `versionCode` 与版本名。
-- 清单地址是 `BuildConfig.UPDATE_MANIFEST_URL`（编译期常量），当前指向局域网服务。
+- 清单地址是 `BuildConfig.UPDATE_MANIFEST_URL`（编译期常量），当前沿用原HTTPS清单地址，本轮没有重新发布或核验远端更新源。
 
 ## 开发约定
 

@@ -25,8 +25,8 @@ android {
         applicationId = "app.duolian.local"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "1.20"
+        versionCode = 37
+        versionName = "1.23"
         manifestPlaceholders["AMAP_ANDROID_KEY"] = amapAndroidKey
         buildConfigField("boolean", "AMAP_CONFIGURED", amapAndroidKey.isNotEmpty().toString())
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://duolian-fitness-download.goodtulip.chatgpt.site/latest.json\"")
@@ -68,7 +68,7 @@ tasks.register("verifyStreetMapConfiguration") {
     }
 }
 dependencies {
-    implementation("com.amap.api:3dmap-location-search:11.3.100_loc11.3.101_sea9.8.1")
+    implementation("com.amap.api:3dmap-location-search:10.1.700_loc6.5.1_sea9.7.4")
     // The bundled SDK calls FastMath from its APS request encoder but omits the dependency in its POM.
     implementation("net.jafama:jafama:2.3.2")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))

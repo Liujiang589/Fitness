@@ -2,7 +2,8 @@ package app.duolian.local.domain
 
 /** In-memory recorder; monotonic time owns duration, persisted checkpoints own recovery. */
 enum class OutdoorSignal(val title: String, val detail: String) {
-    IDLE("准备出发", "到室外开阔处，开始后等待 GPS"),
+    IDLE("准备出发", "可先开始计时计步，可靠路线就绪后计算里程"),
+    APPROXIMATE("已找到大致位置", "网络位置仅供参考；计时计步继续，可靠路线就绪后计距"),
     SEARCHING("寻找 GPS", "时长已开始；收到可靠定位后绘制路线"),
     GOOD("定位正常", "正在记录路线，锁屏后仍会继续请求定位"),
     WEAK("GPS 信号较弱", "时长继续；缺失路线不补画直线"),

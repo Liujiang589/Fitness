@@ -1,11 +1,11 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#101512">
-<title>独练 V1.20 · 下载</title>
-<meta name="description" content="独练是一款本地训练手记 App，支持训练方案、RPE、HIIT 计时、营养记录与训练诊断。这里是 V1.20 官方安装包下载页。">
+<title>独练 V1.23 · 下载</title>
+<meta name="description" content="独练是一款本地训练手记 App，支持训练方案、RPE、HIIT 计时、营养记录与训练诊断。这里是 V1.23 官方安装包下载页。">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiByeD0iMTIiIGZpbGw9IiMxMDE1MTIiLz48cGF0aCBkPSJNMTIgMjRoMjRNMTQgMTdoNE0xNCAzMWg0TTMwIDE3aDRNMzAgMzFoNCIgc3Ryb2tlPSIjQ0ZFRTQ2IiBzdHJva2Utd2lkdGg9IjIuNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+Cg==">
 <style>
 :root{
@@ -85,20 +85,20 @@ footer{margin-top:34px;text-align:center;font-size:12px;color:var(--muted)}
       独练 · 本地训练手记
     </div>
     <h1>把每一组都记清楚</h1>
-    <div class="ver">V1.20 · versionCode 34</div>
+    <div class="ver">V1.23 · versionCode 37</div>
     <p class="lead">训练方案、组类型与 RPE、HIIT 计时、营养记录、训练诊断，全部保存在你自己的手机里。</p>
-    <a class="btn" id="dl" href="独练-V1.20.apk" download>
+    <a class="btn" id="dl" href="独练-V1.23.apk" download>
       下载 Android 安装包
-      <small>67.8 MB · APK</small>
+      <small>58.2 MB · APK</small>
     </a>
-    <a class="sub" id="dlzip" href="https://duolian15.app.workbuddy.host/?sharecode=N6M3DJP2HU" download>
+    <a class="sub" id="dlzip" href="独练-V1.23-安装包.zip" download>
       下载资料压缩包（安装说明等 6 个文件）
       <small>33.9 MB · ZIP</small>
     </a>
     <div class="meta">
       <div><b>1.12</b><span>版本</span></div>
       <div><b>8.0+</b><span>系统要求</span></div>
-      <div><b>67.8 MB</b><span>安装包</span></div>
+      <div><b>58.2 MB</b><span>安装包</span></div>
       <div><b>本地</b><span>数据存放</span></div>
     </div>
   </div>
@@ -109,22 +109,22 @@ footer{margin-top:34px;text-align:center;font-size:12px;color:var(--muted)}
   </div>
 
   <section>
-    <h2>本版更新（V1.20）</h2>
+    <h2>本版更新（V1.23）</h2>
     <div class="card">
       <ul>
-        <li>计划创建与编辑重做：全屏编辑器，名称、动作、组数次数与训练日一眼可见，休息/训练方案/超级组收进进阶设置。</li>
-        <li>首页常驻「＋ 创建计划」入口，首次引导、计划库新建与快捷菜单都进入同一个编辑器。</li>
-        <li>保存改为等待真实结果：失败会提示，不再点击后立刻关闭弹窗。</li>
-        <li>保留草稿、编辑既有计划、取消确认与动作排序；走跑、动作示范、周回顾与旧数据不变。</li>
+        <li>修复走跑启动的崩溃风险：换用没有缺失类引用的高德组合 SDK，并新增依赖完整性测试。</li>
+        <li>网络辅助定位移到独立进程，中断时会提示并自动回退系统定位，计时与计步不受影响。</li>
+        <li>新增应用内异常诊断：出问题可在「我的 → 异常诊断」复制信息，不需要连电脑。</li>
+        <li>安装包从 67.8MB 降到 58.2MB；训练、计划编辑、动作示范与旧数据保持不变。</li>
       </ul>
-      <div class="hash" id="hash">SHA-256（APK）：6901002775caf8fc0a8d5163ecb46e8d47f2612d944913e697d80b40ea1be108</div>
-      <div class="hash" id="hashzip">SHA-256（ZIP）：b7d3055255392c1ef05ef1c20a80701b473a2b3a1e6c13bf545b3e2e81d74360</div>
+      <div class="hash" id="hash">SHA-256（APK）：ef40f0554751f74ac96c339dca6978f6e65366bf1267920777b4188a3283f0b7</div>
+      <div class="hash" id="hashzip">SHA-256（ZIP）：59413e5f46e236b624b1585689686fb2120bf3701ad36852a54157c59f71f6e0</div>
       <div class="row">
         <button class="ghost" onclick="copyText(document.getElementById('hash').textContent.replace('SHA-256（APK）：',''))">复制 APK 校验值</button>
         <button class="ghost" onclick="copyText(document.getElementById('hashzip').textContent.replace('SHA-256（ZIP）：',''))">复制 ZIP 校验值</button>
         <button class="ghost" onclick="copyText(location.href)">复制本页链接</button>
       </div>
-      <p class="note">APK 70,765,659 字节（67.5 MB）｜ZIP 35,592,533 字节（33.9 MB）｜包名 app.duolian.local｜Android 8.0（API 26）以上。下载后可用上面两串校验值核对文件是否完整。</p>
+      <p class="note">APK 61,026,225 字节（58.2 MB）｜ZIP 33,865,598 字节（32.3 MB）｜包名 app.duolian.local｜Android 8.0（API 26）以上。下载后可用上面两串校验值核对文件是否完整。</p>
     </div>
   </section>
 
@@ -132,7 +132,7 @@ footer{margin-top:34px;text-align:center;font-size:12px;color:var(--muted)}
     <h2>安装步骤</h2>
     <div class="card">
       <ol>
-        <li>点击上方按钮下载 <b>独练-V1.20.apk</b>。</li>
+        <li>点击上方按钮下载 <b>独练-V1.23.apk</b>。</li>
         <li>在通知栏或文件管理器中打开它；如果提示「不允许安装未知来源应用」，按提示允许本次安装即可。</li>
         <li>覆盖安装即可，<b>不要先卸载旧版</b>；安装前建议在「我的 → 导出全部数据」留一份备份。</li>
       </ol>
@@ -149,15 +149,15 @@ footer{margin-top:34px;text-align:center;font-size:12px;color:var(--muted)}
     </details>
     <details>
       <summary>应用内的「检查更新」会连到这个网站吗？</summary>
-      <p>本轮只更新了分发网站，应用内置的更新地址尚未改成这个页面，所以应用内自动更新暂时还不会指向这里的 V1.12。需要新版本请在本页手动下载安装。</p>
+      <p>应用内检查更新使用构建时配置的更新清单地址。本地打包不会自动更新远端清单；本页下载可用于手动覆盖升级。</p>
     </details>
     <details>
-      <summary>升级到 V1.12 要注意什么？</summary>
-      <p>直接覆盖安装即可，不要卸载旧版；安装前建议导出一份数据备份。压缩包里有安装说明、第三轮指南、手机体验清单、流畅度报告和摘要。</p>
+      <summary>升级新版本要注意什么？</summary>
+      <p>直接覆盖安装即可，不要卸载旧版；安装前建议导出一份数据备份。压缩包包含安装说明、使用说明、验证记录和资源许可。</p>
     </details>
     <details>
       <summary>应用会不会上传我的数据？</summary>
-      <p>训练与营养数据只保存在本机。应用联网只用于「检查更新」，不会上传训练内容，也没有账号体系。</p>
+      <p>训练与营养记录保存在本机。联网用于更新、街道地图和用户选择的高德辅助定位；辅助定位会向高德提供定位所需的信息。</p>
     </details>
   </section>
 

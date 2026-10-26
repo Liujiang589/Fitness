@@ -7,17 +7,17 @@
 
 | 项目 | 值 |
 |---|---|
-| 版本 | **V1.20**（versionCode 34） |
+| 版本 | **V1.23**（versionCode 37） |
 | 构建 | Release（R8 + 资源压缩，非 debuggable） |
-| 安装包 | [`独练-V1.20.apk`](独练-V1.20.apk)，71,103,621 字节 |
-| SHA-256 | `6901002775caf8fc0a8d5163ecb46e8d47f2612d944913e697d80b40ea1be108` |
-| 交付包 | [`独练-V1.20-安装包.zip`](独练-V1.20-安装包.zip)（含安装指引与验证说明） |
+| 安装包 | [`独练-V1.23.apk`](独练-V1.23.apk)，61,026,225 字节 |
+| SHA-256 | `ef40f0554751f74ac96c339dca6978f6e65366bf1267920777b4188a3283f0b7` |
+| 交付包 | [`独练-V1.23-安装包.zip`](独练-V1.23-安装包.zip)（含安装指引与验证说明） |
 | 签名 | 沿用最初开发证书，可直接覆盖升级 |
 
 ## 下载
 
 - **在线页面**：<https://liujiang589.github.io/Fitness/>（GitHub Pages，随仓库更新）
-- **仓库直链**：上面的 `独练-V1.20.apk`
+- **仓库直链**：上面的 `独练-V1.23.apk`
 - 国内镜像（WorkBuddy 站点）目前仍停留在 V1.12，尚未发布 1.19，扫码前请以在线页面版本号为准。
 
 安装：下载 APK → 在通知栏或文件管理器打开 → 按提示允许「安装未知来源应用」→ 覆盖安装即可，训练数据保留。
@@ -40,6 +40,7 @@
 - 步行/跑步：准备 → 出发 → 运动 → 暂停 → 回顾
 - 出发前只用临时定位，仅接受新鲜且精度合格的定位；运动中显示距离、时间、配速、街道地图
 - 路线分块保存与断点续记；过期的速度读数会立即隐藏
+- 网络辅助定位在独立进程运行，中断时自动回退系统定位并提示；异常可在应用内一键复制诊断信息
 
 **数据与回顾**
 - 近七天回顾：练了什么、哪里有进步、下一步怎么安排
@@ -59,11 +60,12 @@
 | `REQUEST_INSTALL_PACKAGES` | 应用内更新时拉起系统安装器 |
 | `POST_NOTIFICATIONS` | 组间休息、HIIT 的倒计时通知 |
 | `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | 户外步行跑步的轨迹与地图 |
+| `ACCESS_WIFI_STATE` / `CHANGE_WIFI_STATE` | 可选网络辅助定位使用Wi-Fi信息与扫描 |
 | `ACTIVITY_RECOGNITION` | 户外步数 |
 | `FOREGROUND_SERVICE`（含 LOCATION / HEALTH / SPECIAL_USE） | 锁屏时继续计时与记录 |
 | `WAKE_LOCK` | 运动中保持计时准确 |
 
-除「检查更新」外，应用不会上传训练内容；没有账号体系，也没有统计埋点。
+训练与营养记录保存在本机。联网用于更新、街道地图和用户选择的高德辅助定位；辅助定位会向高德提供定位所需信息，没有自建训练记录上传服务。
 
 ## 从源码构建
 
@@ -88,25 +90,29 @@ docs/                版本验证记录、专题文档与早期阶段资料，�
 history/             历史版本安装包，供回溯
 tools/               食物库构建、局域网下载、模型预处理等脚本
 index.html           在线下载页（GitHub Pages 根目录）
-独练-V1.20.apk        当前版本安装包
-独练-V1.20-安装包.zip  当前版本交付包
+独练-V1.23.apk        当前版本安装包
+独练-V1.23-安装包.zip  当前版本交付包
 SHA256SUMS.txt       本目录文件的校验清单
 CHANGELOG.md         版本记录
 ```
 
+本次继续完善计划输入校验、编辑窗口焦点、专业设置摘要和动作编排说明。详见[使用说明](docs/V1_21_PLANS.md)、[验证记录](docs/V1_21_VERIFICATION.md)。设备界面测试仅编译，实际显示仍待验收。
+
+本版处理走跑启动的定位SDK缺失依赖风险，将辅助定位放到独立进程，并新增“我的 → 异常诊断”。详见[使用](docs/V1_23_STABILITY.md)、[验证](docs/V1_23_VERIFICATION.md)。用户手机暂未连接，实际闪退是否消失仍待验证。
+
 ## 验证状态
 
-- JVM 单元测试 **239 项通过**（0 失败 / 0 错误 / 0 跳过）
-- Android Lint：29 项 Warning、6 项 Information，无 Error
+- JVM 单元测试 **263 项通过**（0 失败 / 0 错误 / 0 跳过）
+- Android Lint：28 项 Warning、6 项 Information，无 Error
 - APK：`apksigner` 与 `zipalign` 通过，非 debuggable
-- 真机记录见 [docs/V1_19_VERIFICATION.md](docs/V1_19_VERIFICATION.md)；性能采样见 [docs/V1_12_PERFORMANCE.md](docs/V1_12_PERFORMANCE.md)
+- 真机记录见 [docs/V1_23_VERIFICATION.md](docs/V1_23_VERIFICATION.md)；性能采样见 [docs/V1_12_PERFORMANCE.md](docs/V1_12_PERFORMANCE.md)
 
 这里只陈述构建与测试能证明的部分；界面观感、GPS 实际精度、长期使用体验仍以真机为准。
 
 ## 已知限制
 
-- **体积**：APK 约 67.8MB，其中高德地图 SDK 的两个 ABI 占 55MB；只保留 arm64 可降到约 40MB。
-- **应用内更新仅局域网**：更新清单地址是编译期常量，指向本机局域网服务；公网更新源尚未接入。
+- **体积**：本版APK约 58.2MB，保留arm64-v8a与armeabi-v7a两种架构。
+- **应用内更新入口**：仍沿用构建配置中的旧 HTTPS 清单地址；本轮没有重新发布或核验该远端更新源。
 - **国内镜像滞后**：WorkBuddy 站点仍是 V1.12，需要重新发布才会与仓库一致。
 - **签名**：使用调试/开发证书，不是应用商店签名，不适合直接上架。
 - **文档历史混杂**：`docs/` 保留了 0.x 阶段的原始记录，部分描述只对应当时的实现。

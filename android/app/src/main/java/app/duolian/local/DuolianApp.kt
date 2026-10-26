@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 
 private val Application.preferences by preferencesDataStore("preferences")
 class DuolianApp : Application() {
+    override fun onCreate() { super.onCreate(); AppCrashReport.install(this) }
     val database by lazy { Room.databaseBuilder(this, LocalDatabase::class.java, "duolian.db").build() }
     val repository by lazy { Repository(database) }
     val outdoor by lazy { app.duolian.local.data.OutdoorStore(database) }

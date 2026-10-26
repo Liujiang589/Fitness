@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
@@ -36,5 +38,9 @@
         </service>
         <service android:name=".outdoor.OutdoorService" android:exported="false"
             android:foregroundServiceType="location|health" />
+        <service android:name=".outdoor.LocationAidService" android:exported="false"
+            android:process=":location_aid" />
+        <service android:name="com.amap.api.location.APSService" android:exported="false"
+            android:process=":location_aid" android:foregroundServiceType="location" />
     </application>
 </manifest>

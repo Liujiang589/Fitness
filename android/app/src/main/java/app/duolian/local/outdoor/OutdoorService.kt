@@ -24,7 +24,8 @@ data class OutdoorLive(val running: Boolean = false, val daily: Boolean = false,
     val speedMps: Double? = null, val accuracy: Float? = null, val busy: Boolean = false,
     val commandId: Long = 0, val stationary: Boolean = false, val filteredFixes: Int = 0,
     val stepReadAt: Long? = null, val fixAgeMs: Long? = null, val mapPosition: RoutePoint? = null,
-    val preparation: OutdoorPreparation? = null, val preparationReady: Boolean = false)
+    val preparation: OutdoorPreparation? = null, val preparationReady: Boolean = false,
+    val place: OutdoorPlace? = null, val locationNote: String? = null)
 
 /** Foreground session tracking; no boot receiver, silent GPS restart or always-on location. */
 class OutdoorService : Service(), SensorEventListener, LocationListener {
@@ -35,6 +36,16 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     private val locations by lazy { getSystemService(LocationManager::class.java) }
     private val recorder = OutdoorRecorder()
     private var preparation: OutdoorPreparation? = null
+    private var place: OutdoorPlace? = null
+    private var locationNote: String? = null
+    private val networkAid by lazy { NetworkLocationAid(applicationContext,
+        position = { candidate -> scope.launch { lock.withLock {
+            if (!stopped && locating) {
+                place = OutdoorPlace.choose(place, candidate, tick()); locationNote = null; publish()
+            }
+        } } }, failure = { note -> scope.launch { lock.withLock {
+            if (!stopped && locating) { locationNote = note; publish() }
+        } } }) }
     private var registered = false
     private var stepReadAt: Long? = null
     private var locating = false
@@ -193,17 +204,40 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     }
 
     private fun saveOptions() { getSharedPreferences(PREFS, 0).edit().putBoolean("daily", daily).apply() }
-    private fun gpsEnabled() = locations.allProviders.contains(LocationManager.GPS_PROVIDER) &&
-        locations.isProviderEnabled(LocationManager.GPS_PROVIDER)
+    private fun gpsEnabled() = if (Build.VERSION.SDK_INT >= 28) locations.isLocationEnabled
+        else listOf(LocationManager.GPS_PROVIDER,LocationManager.NETWORK_PROVIDER).any { providerEnabled(it) }
+    private fun providerEnabled(provider: String) = runCatching {
+        provider in locations.allProviders && locations.isProviderEnabled(provider)
+    }.getOrDefault(false)
+    private fun placeFrom(location: Location, cached: Boolean): OutdoorPlace? {
+        val sample = location.elapsedRealtimeNanos / 1_000_000
+        if (sample <= 0) return null
+        return OutdoorPlace(RoutePoint(location.latitude, location.longitude, location.time,
+            if(location.hasAccuracy()) location.accuracy else Float.POSITIVE_INFINITY), sample,
+            cached = cached, source = if(cached) "系统最近位置" else "系统网络定位")
+    }
 
     private fun syncResources() {
         val wantsGps = (recorder.run?.status == OutdoorStatus.ACTIVE || preparation!=null) && canLocate(this) && gpsEnabled()
         if (wantsGps && !locating) {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
                 throw SecurityException("精确定位权限已关闭，请重新授权")
-            locations.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this, Looper.getMainLooper())
             locating = true
-        } else if (!wantsGps && locating) { locations.removeUpdates(this); locating = false }
+            for(provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+                if(providerEnabled(provider)) {
+                    runCatching { locations.getLastKnownLocation(provider) }.getOrNull()?.let { last ->
+                        placeFrom(last, true)?.let { place = OutdoorPlace.choose(place, it, tick()) }
+                    }
+                    if(provider == LocationManager.GPS_PROVIDER)
+                        locations.requestLocationUpdates(provider, 1000L, 0f, this, Looper.getMainLooper())
+                    else runCatching { locations.requestLocationUpdates(provider, 2000L, 0f, this, Looper.getMainLooper()) }
+                }
+            }
+            locationNote = null
+            networkAid.start()
+        } else if (!wantsGps && locating) {
+            locating = false; locations.removeUpdates(this); networkAid.stop(); place = null; locationNote = null
+        }
         val wantsCounter = (daily || recorder.run != null) && canCount(this) && hasCounter(this)
         if (wantsCounter && !registered) {
             registered = sensors.registerListener(this, sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER),
@@ -237,6 +271,13 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
 
     override fun onLocationChanged(location: Location) {
         scope.launch { lock.withLock {
+            if (location.provider != LocationManager.GPS_PROVIDER) {
+                if (!stopped && locating) {
+                    placeFrom(location, false)?.let { place = OutdoorPlace.choose(place, it, tick()) }
+                    publish()
+                }
+                return@withLock
+            }
             if(!stopped && preparation!=null) {
                 preparation=preparation?.accept(location.latitude,location.longitude,
                     if(location.hasAccuracy())location.accuracy else 999f,location.elapsedRealtimeNanos/1_000_000,
@@ -256,6 +297,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     override fun onProviderDisabled(provider: String) {
         if (provider != LocationManager.GPS_PROVIDER) return
         scope.launch { lock.withLock {
+            if (gpsEnabled()) { publish(); return@withLock }
             if(preparation!=null) {
                 preparation=null;error="手机定位已关闭，请开启后重新准备。"
                 runCatching { syncResources() };publish()
@@ -291,7 +333,8 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
             recorder.speedMps, recorder.accuracy, commandId = commandId, stationary = recorder.stationary,
             filteredFixes = recorder.filteredFixes, stepReadAt = stepReadAt.takeIf { registered },
             fixAgeMs = recorder.lastFixTick?.let { (tick() - it).coerceAtLeast(0) },mapPosition = recorder.mapPosition,
-            preparation=preparation,preparationReady=preparation?.ready(tick())==true)
+            preparation=preparation,preparationReady=preparation?.ready(tick())==true,
+            place=place?.takeIf { it.fresh(tick()) && locating },locationNote=locationNote)
     }
     private fun notification(): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java)
@@ -301,7 +344,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
             .setContentTitle(r?.let { "独练 · ${it.kind.label}${if (it.status == OutdoorStatus.PAUSED) "已暂停" else "记录中"}" }
                 ?: if(preparation!=null)"独练 · 准备${preparation!!.kind.label}" else "独练 · 日常计步已开启")
             .setContentText(r?.let { "%.2f km · %d 分钟 · %s".format(it.distanceMeters / 1000, it.elapsedMs / 60000, recorder.signal.title) }
-                ?: if(preparation!=null)"正在准备GPS，尚未开始计时或保存路线" else "日常计步不使用 GPS · 点击查看")
+                ?: if(preparation!=null)"正在定位，可先开始计时计步" else "日常计步不使用 GPS · 点击查看")
             .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
         if (r?.status == OutdoorStatus.ACTIVE) builder.addAction(0, "暂停运动", PendingIntent.getService(this, 1,
             Intent(this, OutdoorService::class.java).setAction(PAUSE), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
@@ -326,6 +369,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
     }
     override fun onDestroy() {
+        locating = false; networkAid.stop()
         sensors.unregisterListener(this); runCatching { locations.removeUpdates(this) }
         releaseWakeLock(); live.value = OutdoorLive(error = error, commandId = commandId)
         scope.cancel(); super.onDestroy()

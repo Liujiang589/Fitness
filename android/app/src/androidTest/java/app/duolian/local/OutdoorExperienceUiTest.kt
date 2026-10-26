@@ -43,6 +43,30 @@ class OutdoorExperienceUiTest {
         ui.onNodeWithText("取消准备").performClick()
         assertEquals(0,starts);assertEquals(1,cancels)
     }
+    @Test fun weakSignalDoesNotBlockTheExplicitTimerAndStepStart() {
+        var starts=0
+        ui.setContent{DuolianTheme{OutdoorPreparationView(OutdoorKind.WALK,1,false,null,false,
+            Modifier.fillMaxSize(),{starts++},{},allowUnreadyStart=true)}}
+        ui.onNodeWithText("先开始计时与计步").performScrollTo().assertIsEnabled().performClick()
+        ui.waitUntil(6000){starts==1}
+        assertEquals(1,starts)
+    }
+    @Test fun networkPositionIsNotLabelledAsGpsReadyAndCanBeCancelled() {
+        var starts=0;var cancels=0
+        val place=OutdoorPlace(RoutePoint(30.0,120.0,10000,80f),1000,true,source="高德辅助定位")
+        ui.setContent{DuolianTheme{OutdoorPreparationView(OutdoorKind.WALK,1,false,null,false,
+            Modifier.fillMaxSize(),{starts++},{cancels++},allowUnreadyStart=true,place=place)}}
+        ui.onNodeWithText("已找到当前位置").assertIsDisplayed()
+        ui.onNodeWithText("路线定位已就绪").assertDoesNotExist()
+        ui.onNodeWithText("取消准备").performScrollTo().performClick()
+        assertEquals(0,starts);assertEquals(1,cancels)
+    }
+    @Test fun missingStepCapabilityDoesNotPromiseStepCountingOrBlockTheTimer() {
+        ui.setContent{DuolianTheme{OutdoorPreparationView(OutdoorKind.WALK,1,false,null,false,
+            Modifier.fillMaxSize(),{},{},allowUnreadyStart=true,canCountSteps=false)}}
+        ui.onNodeWithText("先开始计时").performScrollTo().assertIsEnabled()
+        ui.onNodeWithText("先开始计时与计步").assertDoesNotExist()
+    }
     @Test fun readyCountdownStartsOnceAndBlocksDuplicateTaps() {
         var starts=0
         ui.setContent{DuolianTheme{OutdoorPreparationView(OutdoorKind.RUN,1,true,6f,false,

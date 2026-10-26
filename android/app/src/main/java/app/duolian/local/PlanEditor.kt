@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,24 +30,26 @@ import app.duolian.local.domain.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+private val PlanExerciseIdsSaver = listSaver<List<String>, String>(save = { it }, restore = { it.toList() })
+private val PlanWeekdaysSaver = listSaver<List<Int>, Int>(save = { it }, restore = { it.toList() })
+
 /** One editor shared by the home, plan library and quick menu. Saving completes before dismissal. */
 @Composable internal fun PlanForm(p: Plan?, exercises: List<Exercise>, dismiss: () -> Unit,
     save: suspend (Plan) -> Unit) {
     val entryId = rememberSaveable(p?.id) { p?.id ?: newId() }
     var name by rememberSaveable { mutableStateOf(p?.name ?: "") }
-    var ids by rememberSaveable { mutableStateOf(ArrayList(p?.exerciseIds ?: emptyList())) }
+    var ids by rememberSaveable(stateSaver = PlanExerciseIdsSaver) { mutableStateOf(p?.exerciseIds?.toList() ?: emptyList()) }
     var sets by rememberSaveable { mutableStateOf((p?.sets ?: 3).toString()) }
     var reps by rememberSaveable { mutableStateOf((p?.reps ?: 10).toString()) }
     var rest by rememberSaveable { mutableStateOf((p?.restSeconds ?: 0).toString()) }
     var schemeName by rememberSaveable { mutableStateOf((p?.scheme ?: SetScheme.STRAIGHT).name) }
     var supersetName by rememberSaveable { mutableStateOf((p?.superset ?: SupersetMode.NONE).name) }
-    var weekdays by rememberSaveable { mutableStateOf(ArrayList(p?.weekdays ?: emptyList())) }
+    var weekdays by rememberSaveable(stateSaver = PlanWeekdaysSaver) { mutableStateOf(p?.weekdays?.toList() ?: emptyList()) }
     var picker by rememberSaveable { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val focus = LocalFocusManager.current
     val scheme = SetScheme.valueOf(schemeName)
     val superset = SupersetMode.valueOf(supersetName)
     val changed = name != (p?.name ?: "") || ids != (p?.exerciseIds ?: emptyList<String>()) ||
@@ -55,17 +58,18 @@ import kotlinx.coroutines.launch
         superset != (p?.superset ?: SupersetMode.NONE) || weekdays.toSet() != (p?.weekdays ?: emptyList()).toSet()
     val close: () -> Unit = {
         if (!saving) {
-            focus.clearFocus()
             when { picker -> picker = false; changed -> confirmLeave = true; else -> dismiss() }
         }
     }
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false,
         decorFitsSystemWindows = false, dismissOnClickOutside = false)) {
+        // A Dialog owns its own focus tree; the underlying activity's manager cannot clear its IME focus.
+        val focus = LocalFocusManager.current
         Surface(Modifier.fillMaxSize(), color = Page) {
             Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = close, enabled = !saving) { Text(if (picker) "返回" else "取消") }
+                    TextButton(onClick = { focus.clearFocus(); close() }, enabled = !saving) { Text(if (picker) "返回" else "取消") }
                     Text(if (picker) "选择动作" else if (p == null) "创建计划" else "编辑计划",
                         Modifier.weight(1f).padding(horizontal = 8.dp), style = MaterialTheme.typography.titleLarge)
                     Text(if (picker) "${ids.size} 已选" else "独练", color = Muted,
@@ -73,7 +77,7 @@ import kotlinx.coroutines.launch
                 }
                 if (picker) {
                     PlanExercisePicker(exercises, ids, Modifier.weight(1f), toggle = { id ->
-                        ids = ArrayList(if (id in ids) ids - id else ids + id)
+                        ids = if (id in ids) ids - id else ids + id
                         error = null
                     })
                 } else {
@@ -129,14 +133,14 @@ import kotlinx.coroutines.launch
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                                         TextButton(enabled = !saving && index > 0, modifier = Modifier.semantics {
                                             contentDescription = "上移${exercise?.name ?: id}" }, onClick = {
-                                            ids = ArrayList(ids).also { it[index] = it[index - 1]; it[index - 1] = id }
+                                            ids = ids.toMutableList().also { it[index] = it[index - 1]; it[index - 1] = id }.toList()
                                         }) { Text("上移") }
                                         TextButton(enabled = !saving && index < ids.lastIndex, modifier = Modifier.semantics {
                                             contentDescription = "下移${exercise?.name ?: id}" }, onClick = {
-                                            ids = ArrayList(ids).also { it[index] = it[index + 1]; it[index + 1] = id }
+                                            ids = ids.toMutableList().also { it[index] = it[index + 1]; it[index + 1] = id }.toList()
                                         }) { Text("下移") }
                                         TextButton(enabled = !saving, modifier = Modifier.semantics {
-                                            contentDescription = "移除${exercise?.name ?: id}" }, onClick = { ids = ArrayList(ids - id) }) {
+                                            contentDescription = "移除${exercise?.name ?: id}" }, onClick = { ids = ids - id }) {
                                             Text("移除", color = Muted)
                                         }
                                     }
@@ -164,15 +168,15 @@ import kotlinx.coroutines.launch
                                     val day = i + 1
                                     FilterChip(selected = day in weekdays, enabled = !saving,
                                         modifier = Modifier.semantics { contentDescription = "星期$label" },
-                                        onClick = { weekdays = ArrayList(if (day in weekdays) weekdays - day else weekdays + day) },
+                                        onClick = { weekdays = if (day in weekdays) weekdays - day else weekdays + day },
                                         label = { Text(label) })
                                 }
                             }
                         } }
                         item { Panel {
+                            Text("${scheme.label} · ${superset.label}", color = Muted,
+                                style = MaterialTheme.typography.bodySmall)
                             DetailDisclosure("进阶训练设置") {
-                                Text("${scheme.label} · ${superset.label}", color = Muted,
-                                    style = MaterialTheme.typography.bodySmall)
                                 AppField(rest, { if (!saving) rest = it }, "组间休息", suffix = "秒",
                                     keyboardType = KeyboardType.Number, modifier = Modifier.testTag("plan-rest"))
                                 Text("0 秒表示沿用“我的”里的默认组间休息。", color = Muted,
@@ -185,7 +189,11 @@ import kotlinx.coroutines.launch
                                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     SupersetMode.entries.forEach { s -> ChoicePill(s.label, s == superset, { if (!saving) supersetName = s.name }) }
                                 }
-                                Text("超级组按相邻两个动作配对，至少选择两个动作。", color = Muted,
+                                Text(when (superset) {
+                                    SupersetMode.NONE -> "逐个动作完成，再进入下一个动作。"
+                                    SupersetMode.PAIRS -> "相邻两个动作配对交替完成，至少选择两个动作。"
+                                    SupersetMode.ALL -> "全部动作组成一轮，按顺序交替完成各组。"
+                                }, color = Muted,
                                     style = MaterialTheme.typography.bodySmall)
                             }
                         } }
@@ -200,13 +208,8 @@ import kotlinx.coroutines.launch
                             focus.clearFocus()
                             if (picker) picker = false else {
                                 val plan = runCatching {
-                                    require(name.isNotBlank()) { "给计划起个名字，再保存。" }
-                                    require(ids.isNotEmpty()) { "先选择至少一个训练动作。" }
-                                    Plan(entryId, name.trim(), ids.toList(),
-                                        sets.toIntOrNull() ?: error("组数请输入1–100的整数。"),
-                                        reps.toIntOrNull() ?: error("次数请输入0–1000的整数。"),
-                                        scheme, rest.toIntOrNull() ?: error("休息请输入0–600的整数。"),
-                                        superset, weekdays.sorted()).also { Rules.plan(it, exercises) }
+                                    PlanEditorInput(entryId, name, ids, sets, reps, rest,
+                                        scheme, superset, weekdays).toPlan(exercises)
                                 }.getOrElse { error = it.message ?: "请检查计划内容。"; null }
                                 if (plan != null) {
                                     saving = true; error = null
