@@ -11,10 +11,14 @@ import app.duolian.local.domain.RoutePoint
 
 /** Only IPC runs in the recorder process. A third-party locator cannot terminate the workout process. */
 internal class NetworkLocationAid(private val context: Context,
-    private val position: (OutdoorPlace) -> Unit, private val failure: (String) -> Unit) {
+    private val position: (OutdoorPlace) -> Unit, private val failure: (String) -> Unit,
+    private val startupWaitMs: Long = 15000) {
     private var connection: ServiceConnection? = null
     private var worker: Messenger? = null
     private var generation = 0
+    private val main = Handler(Looper.getMainLooper())
+    private var startupTimeout: Runnable? = null
+    private fun clearTimeout() { startupTimeout?.let { main.removeCallbacks(it) }; startupTimeout = null }
     fun start() {
         if (connection != null || !BuildConfig.AMAP_CONFIGURED || !enabled(context)) return
         val token = ++generation
@@ -22,12 +26,15 @@ internal class NetworkLocationAid(private val context: Context,
             if (token == generation && connection != null) {
                 if (message.what == LocationAidProtocol.POSITION) {
                     val data = message.data
-                    position(OutdoorPlace(RoutePoint(data.getDouble("lat", Double.NaN),
+                    val place = OutdoorPlace(RoutePoint(data.getDouble("lat", Double.NaN),
                         data.getDouble("lon", Double.NaN), data.getLong("time"),
                         data.getFloat("accuracy", Float.POSITIVE_INFINITY)), data.getLong("tick"),
-                        data.getBoolean("gcj02"), data.getBoolean("cached"), data.getString("source") ?: "网络辅助定位"))
-                } else if (message.what == LocationAidProtocol.ERROR)
+                        data.getBoolean("gcj02"), data.getBoolean("cached"), data.getString("source") ?: "网络辅助定位")
+                    if (place.fresh(SystemClock.elapsedRealtime())) { clearTimeout(); position(place) }
+                } else if (message.what == LocationAidProtocol.ERROR) {
+                    clearTimeout()
                     failure(message.data.getString("note") ?: "辅助定位暂不可用，系统定位仍在继续。")
+                }
             }
             true
         })
@@ -45,15 +52,21 @@ internal class NetworkLocationAid(private val context: Context,
             override fun onNullBinding(name: ComponentName) = onServiceDisconnected(name)
         }
         connection = service
+        startupTimeout = Runnable {
+            if (token == generation && connection != null) {
+                stop(); failure("辅助定位响应较慢，已继续使用系统定位。")
+            }
+        }.also { main.postDelayed(it, startupWaitMs) }
         try {
             val intent = Intent(context, LocationAidService::class.java).putExtra("consented", true)
             if (!context.bindService(intent, service, Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT)) {
-                connection = null; failure("辅助定位未启动，系统定位仍在继续。")
+                clearTimeout(); connection = null; failure("辅助定位未启动，系统定位仍在继续。")
             }
         } catch (_: Exception) { stop(); failure("辅助定位暂不可用，系统定位仍在继续。") }
     }
     fun stop() {
         generation++
+        clearTimeout()
         val service = connection; connection = null
         runCatching { worker?.send(Message.obtain(null, LocationAidProtocol.STOP)) }; worker = null
         if (service != null) runCatching { context.unbindService(service) }

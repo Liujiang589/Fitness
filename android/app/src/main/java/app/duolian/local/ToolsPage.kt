@@ -62,14 +62,13 @@ private fun mmss(ms: Long): String {
 }
 
 @Composable private fun ToolGrid(onRest: () -> Unit, onHiit: () -> Unit, onOneRm: () -> Unit, onPlate: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ToolTile(1, "组间计时", "休息倒计时", Modifier.weight(1f), onRest)
-            ToolTile(5, "间歇训练", "HIIT 计时", Modifier.weight(1f), onHiit)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ToolTile(7, "1RM 估算", "极限重量与配重", Modifier.weight(1f), onOneRm)
-            ToolTile(6, "杠铃片", "每侧怎么加", Modifier.weight(1f), onPlate)
+    val minimum = maxOf(140.dp, textWidth("极限重量与配重", MaterialTheme.typography.bodySmall) + 34.dp)
+    ResponsiveTiles(minimum, 4) { index, area ->
+        when (index) {
+            0 -> ToolTile(1, "组间计时", "休息倒计时", area, onRest)
+            1 -> ToolTile(5, "间歇训练", "HIIT 计时", area, onHiit)
+            2 -> ToolTile(7, "1RM 估算", "极限重量与配重", area, onOneRm)
+            else -> ToolTile(6, "杠铃片", "每侧怎么加", area, onPlate)
         }
     }
 }

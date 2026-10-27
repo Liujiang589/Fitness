@@ -49,6 +49,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import java.time.LocalDate
 import kotlin.math.*
 
@@ -98,7 +100,9 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
                 if (result.error == null && action in listOf(OutdoorService.WALK, OutdoorService.RUN))
                     completedRunId.value = null
                 if(result.error==null)onSuccess()
-            } catch (_: Exception) { message.value = "操作未确认完成，请检查当前记录状态后重试" }
+            } catch (_: TimeoutCancellationException) { message.value = "操作未确认完成，请检查当前记录状态后重试" }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { message.value = "操作未确认完成，请检查当前记录状态后重试" }
             finally { working.value = false }
         }
     }
@@ -149,9 +153,7 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable private fun rememberToday(): String {
-    var today by remember { mutableStateOf(LocalDate.now().toString()) }
-    LaunchedEffect(Unit) { while (true) { today = LocalDate.now().toString(); delay(10000) } }
-    return today
+    return rememberTrainingDate().toString()
 }
 
 @Composable internal fun OutdoorPage(dismiss: () -> Unit, vm: OutdoorViewModel = viewModel()) {
@@ -198,7 +200,7 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
         else if (action == OutdoorService.DAILY_ON && !OutdoorService.canCount(context)) vm.message.value = "未获得身体活动权限，暂时无法计步。"
         else {
             if(action==OutdoorService.PREPARE_WALK || action==OutdoorService.PREPARE_RUN)preparationRequested=true
-            vm.command(action)
+            vm.command(action, if (action == OutdoorService.RESUME) active?.id else null)
         }
     }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -291,7 +293,7 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("当天已采集步数", fontWeight = FontWeight.SemiBold)
-                                Text("${days.firstOrNull { it.date == today }?.steps ?: 0} 步", color = Ink,
+                                Text(days.firstOrNull { it.date == today }?.let { "${it.steps} 步" } ?: "尚未采集", color = Ink,
                                     style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                                 Text(if (live.daily) if (!live.stepReceived) "已开启 · 等待传感器首条读数" else
                                     "传感器已接入 · 可能延迟数秒成批更新" else "按需开启，日常计步不使用 GPS", color = Muted, style = MaterialTheme.typography.bodySmall)
@@ -345,7 +347,7 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
                 active?.let { r ->
                     val recording = live.running && live.session?.status == OutdoorStatus.ACTIVE
                     WorkoutControls(recording, working || live.busy, toggle = {
-                        if (recording) vm.command(OutdoorService.PAUSE) else request(OutdoorService.RESUME)
+                        if (recording) vm.command(OutdoorService.PAUSE, r.id) else request(OutdoorService.RESUME)
                     }, finish = {
                         if(recording)vm.command(OutdoorService.PAUSE,r.id){exit=WorkoutExit.SAVE} else exit=WorkoutExit.SAVE
                     }, discard = {

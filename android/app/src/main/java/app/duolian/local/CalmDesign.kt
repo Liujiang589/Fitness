@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun NutritionBreakdown(protein: Double, carbs: Double, fat: Double) {
     val values = listOf(protein * 4, carbs * 4, fat * 9)
     val colors = listOf(Blue, Color(0xFFC29D58), Color(0xFFB88372))
@@ -63,7 +64,7 @@ import androidx.compose.ui.unit.dp
                     .fillMaxHeight(), color = colors[i], shape = RoundedCornerShape(5.dp)) {}
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("蛋白质", "碳水", "脂肪").forEachIndexed { i, label ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Surface(Modifier.size(7.dp), color = colors[i], shape = RoundedCornerShape(4.dp)) {}

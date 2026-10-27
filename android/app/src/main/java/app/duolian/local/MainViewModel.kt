@@ -9,6 +9,8 @@ import app.duolian.local.timer.TimerService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -35,6 +37,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val message = MutableStateFlow<String?>(null)
     val pendingImport = MutableStateFlow<Backup?>(null)
     private val operationLock = Mutex()
+    private val setDrafts = TrainingDrafts()
+    private val draftJobs = mutableMapOf<TrainingDraftKey, Job>()
     init { act { repo.initialize(); hiitRuns.value = repo.hiitRuns(); ready.value = true; autoBackup() } }
     fun act(job: suspend () -> Unit) {
         viewModelScope.launch {
@@ -47,21 +51,53 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     /** Let the editor await the actual transaction, retaining its draft if persistence fails. */
-    suspend fun savePlanEdits(plan: Plan) = operationLock.withLock {
+    suspend fun persistRecord(job: suspend () -> Unit) = operationLock.withLock {
         busy.value = true
-        try {
+        try { job() } finally { busy.value = false }
+    }
+    suspend fun savePlanEdits(plan: Plan) = persistRecord {
             repo.savePlan(plan)
             message.value = "已保存计划「${plan.name}」"
-        } finally { busy.value = false }
     }
+    suspend fun saveRestEdits(seconds: Int) = persistRecord { owner.setRest(seconds) }
+    suspend fun saveSetEdits(movementId: String, set: TrainingSet) = persistRecord {
+        sessions.value.firstOrNull { it.endedAt == null }?.let { cancelDraft(TrainingDraftKey(it.id, movementId, set.id)) }
+        repo.updateSet(movementId, set)
+    }
+    val completedTraining = MutableStateFlow<Session?>(null)
     fun setRest(seconds: Int) = act { owner.setRest(seconds) }
     private fun restFor(active: Session): Int = active.planId
         ?.let { id -> plans.value.firstOrNull { it.id == id }?.restSeconds }
         ?.takeIf { it > 0 } ?: rest.value
-    fun saveQuickSet(movementId: String, setId: String, grams: Long, reps: Int) = act {
-        repo.changeActive { TrainingAssist.updateValues(it, movementId, setId, grams, reps) }
+    fun saveQuickSet(sessionId: String, movementId: String, setId: String, grams: Long, reps: Int) {
+        val key = TrainingDraftKey(sessionId, movementId, setId)
+        setDrafts.offer(TrainingDraft(key, grams, reps))
+        draftJobs.remove(key)?.cancel()
+        draftJobs[key] = viewModelScope.launch {
+            delay(600)
+            act {
+                setDrafts.take(key)?.let { draft -> repo.changeActive(draft::apply) }
+                draftJobs.remove(key)
+            }
+        }
+    }
+    private fun cancelDraft(key: TrainingDraftKey) { draftJobs.remove(key)?.cancel(); setDrafts.take(key) }
+    private suspend fun flushDrafts() {
+        val active = sessions.value.firstOrNull { it.endedAt == null } ?: return
+        val drafts = setDrafts.takeSession(active.id)
+        drafts.forEach { draftJobs.remove(it.key)?.cancel() }
+        if (drafts.isNotEmpty()) repo.changeActive { current -> drafts.fold(current) { session, draft -> draft.apply(session) } }
+    }
+    fun discardTraining(sessionId: String) = act {
+        setDrafts.takeSession(sessionId).forEach { draftJobs.remove(it.key)?.cancel() }
+        repo.deleteSession(sessionId); stopTimer()
+    }
+    fun removeTrainingSet(sessionId: String, movementId: String, setId: String) = act {
+        cancelDraft(TrainingDraftKey(sessionId, movementId, setId))
+        repo.removeSet(movementId, setId)
     }
     fun completeQuickSet(movementId: String, setId: String, grams: Long, reps: Int) = act {
+        sessions.value.firstOrNull { it.endedAt == null }?.let { cancelDraft(TrainingDraftKey(it.id, movementId, setId)) }
         val after = repo.changeActive { TrainingAssist.completeValues(it, movementId, setId,
             grams, reps, restFor(it), System.currentTimeMillis()) }
         syncRestTimer(after)
@@ -105,6 +141,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         message.value = "已把「${updated.name}」默认重量调整为 ${kg(updated.defaultGrams)} kg"
     }
     fun togglePause() = act {
+        flushDrafts()
         val s = repo.changeActive { session ->
             val now = System.currentTimeMillis()
             if (session.pausedAt == null) Rules.pause(session, now) else Rules.resume(session, now)
@@ -112,10 +149,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         syncRestTimer(s)
     }
     fun finish() = act {
-        repo.changeActive { Rules.finish(it, System.currentTimeMillis()) }
+        flushDrafts()
+        val finished = repo.changeActive { Rules.finish(it, System.currentTimeMillis()) }
         TimerService.stop(getApplication())
+        completedTraining.value = finished
     }
     fun export(uri: Uri) = act {
+        flushDrafts()
         val snapshot = repo.snapshot(rest.value)
         val json = withContext(Dispatchers.Default) {
             Codec.encodeToString(snapshot).also {
@@ -150,6 +190,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun confirmImport() = act {
         require(!app.duolian.local.outdoor.OutdoorService.live.value.running) { "请先结束户外运动并关闭日常计步，再导入备份" }
         val b = pendingImport.value ?: return@act
+        flushDrafts()
         // Keep the last pre-import snapshot even if an I/O error or a later replacement fails.
         val snapshot = repo.snapshot(rest.value)
         val old = withContext(Dispatchers.Default) { Codec.encodeToString(snapshot) }

@@ -21,6 +21,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -62,6 +65,9 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
     val outdoorBlocksPrompt by remember { app.duolian.local.outdoor.OutdoorService.live
         .map { it.run != null || it.busy }.distinctUntilChanged() }.collectAsStateWithLifecycle(false)
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val pageState = rememberSaveableStateHolder()
+    val completedTraining by vm.completedTraining.collectAsStateWithLifecycle()
     val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -87,9 +93,10 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
         auxiliary={auxiliary=it;editFood=null;editBody=null},body={editBody=it;auxiliary="body"},
         food={editFood=it;auxiliary="food"},ask=ask,nutrition={tab=0;nutrition=true})
     var quickMenu by remember { mutableStateOf(false) }
+    BackHandler(enabled = tab != 0) { focusManager.clearFocus(); tab = 0; nutrition = false }
     BackHandler(enabled = tab == 0 && nutrition) { nutrition = false }
     Scaffold(modifier = Modifier.imePadding(), containerColor = Page, snackbarHost = { SnackbarHost(snackbar) }, bottomBar = {
-        PremiumNavigation(tab) { tab = it; if (it == 0) nutrition = false }
+        PremiumNavigation(tab) { focusManager.clearFocus(); tab = it; if (it == 0) nutrition = false }
     }) { padding -> Column(Modifier.fillMaxSize().padding(padding)) {
         Box {
             PremiumHeader(tab, nutrition, { nutrition = !nutrition }, { quickMenu = true })
@@ -101,21 +108,26 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
                 DropdownMenuItem(text = { Text("步行与跑步") }, onClick = { quickMenu = false; a.auxiliary("outdoor") })
             }
         }
-        if(busy)LinearProgressIndicator(Modifier.fillMaxWidth(),color=Blue)
+        Box(Modifier.fillMaxWidth().height(2.dp)) {
+            if(busy)LinearProgressIndicator(Modifier.fillMaxSize(),color=Blue)
+        }
         if(!ready)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){
             if(busy)CircularProgressIndicator(Modifier.size(26.dp));Text(if(busy)"正在打开本地数据…" else "本地数据尚未就绪",Modifier.padding(16.dp),color=Muted)
             if(!busy)Button(onClick={vm.act{vm.repo.initialize();vm.ready.value=true}}){Text("重试")}
-        }} else when(tab){
+        }} else pageState.SaveableStateProvider(if (tab == 0 && nutrition) "nutrition" else "tab-$tab") { when(tab){
             0->if(nutrition)NutritionPage(food,water,vm,a)else TrainingPage(vm,exercises,plans,sessions,food,water,busy,a)
             1->ToolsPage(sessions,vm,hiitRuns)
             2->ExercisePage(exercises,a)
             3->HistoryPage(sessions,exercises,plans,body,food,vm,a)
             else->ProfilePage(body,sessions,rest,busy,vm,a,{export.launch("独练-${LocalDate.now()}.json")},{import.launch(arrayOf("application/json","text/plain","application/octet-stream"))},{recovery.launch("独练-导入前备份.json")},{auto.launch("独练-自动备份-${LocalDate.now()}.json")},autoBackupAt,updateState){if(updateState.downloading || updateState.file!=null)updater.open() else updater.check(true)}
-        }
+        } }
     }}
     AppUpdateHost(updater, updateState, canPrompt = ready && sessions.none { it.endedAt == null } &&
-        !outdoorBlocksPrompt && !exerciseForm && !planForm && detail == null && auxiliary == null && confirm == null && pending == null)
-    if(exerciseForm)ExerciseForm(editExercise,{exerciseForm=false}){x->vm.act{vm.repo.saveExercise(x)}}
+        !outdoorBlocksPrompt && completedTraining == null && !exerciseForm && !planForm && detail == null && auxiliary == null && confirm == null && pending == null)
+    completedTraining?.let { result -> TrainingCompletionDialog(result,
+        dismiss = { vm.completedTraining.value = null },
+        history = { vm.completedTraining.value = null; tab = 3 }) }
+    if(exerciseForm)ExerciseForm(editExercise,{exerciseForm=false}){x->vm.persistRecord{vm.repo.saveExercise(x)}}
     if(planForm)PlanForm(editPlan,exercises,{planForm=false}){x->vm.savePlanEdits(x)}
     detail?.let { e -> ExerciseGuideDialog(e,busy,
         dismiss={detail=null},
@@ -128,12 +140,15 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
     val kind=auxiliary?.substringBefore(':');val auxDate=auxiliary?.split(':')?.let{if(it.size>2)it[2] else if(kind=="water"&&it.size>1)it[1] else LocalDate.now().toString()}?:LocalDate.now().toString()
     when(kind){
         "outdoor" -> OutdoorPage({ auxiliary = null })
-        "rest"->FieldsDialog("组间休息",listOf("秒（0–600）" to rest.toString()),{auxiliary=null}){v->val seconds=v[0].toInt();require(seconds in 0..600){"休息需为0–600秒"};vm.setRest(seconds)}
-        "body"->FieldsDialog(if(editBody==null)"记录身体数据" else "编辑身体记录",listOf("日期" to(editBody?.date?:auxDate),"体重 kg" to(editBody?.let{kg(it.grams)}?:""),"体脂 %（可空）" to(editBody?.fatPercent?.toString()?:"")),{auxiliary=null}){v->val b=Body(id=editBody?.id?:newId(),date=v[0],grams=Rules.parseKg(v[1]),fatPercent=v[2].takeIf{it.isNotBlank()}?.toDouble());Rules.body(b);vm.act{vm.repo.saveBody(b)}}
+        "rest"->FieldsDialog("组间休息",listOf("秒（0–600）" to rest.toString()),{auxiliary=null},
+            keyboards=listOf(KeyboardType.Number)){v->val seconds=v[0].toIntOrNull() ?: error("请输入整数秒数");require(seconds in 0..600){"休息需为0–600秒"};vm.saveRestEdits(seconds)}
+        "body"->FieldsDialog(if(editBody==null)"记录身体数据" else "编辑身体记录",listOf("日期" to(editBody?.date?:auxDate),"体重 kg" to(editBody?.let{kg(it.grams)}?:""),"体脂 %（可空）" to(editBody?.fatPercent?.toString()?:"")),{auxiliary=null},
+            keyboards=listOf(KeyboardType.Text,KeyboardType.Decimal,KeyboardType.Decimal)){v->val b=Body(id=editBody?.id?:newId(),date=v[0],grams=Rules.parseKg(v[1]),fatPercent=v[2].takeIf{it.isNotBlank()}?.let{it.toDoubleOrNull() ?: error("请输入有效的体脂率")});Rules.body(b);vm.persistRecord{vm.repo.saveBody(b)}}
         "food","meal" -> FoodEntryDialog(editFood, auxDate,
             if (kind == "meal") auxiliary!!.split(':')[1] else "早餐", food, busy,
-            dismiss = { auxiliary = null }, save = { entry -> vm.act { vm.repo.saveFood(entry); auxiliary = null } })
-        "water"->FieldsDialog("记录饮水",listOf("日期" to auxDate,"饮水 ml" to "250"),{auxiliary=null}){v->val w=Water(date=v[0],ml=v[1].toInt());Rules.water(w);vm.act{vm.repo.saveWater(w)}}
+            dismiss = { auxiliary = null }, save = { entry -> vm.persistRecord { vm.repo.saveFood(entry) } })
+        "water"->FieldsDialog("记录饮水",listOf("日期" to auxDate,"饮水 ml" to "250"),{auxiliary=null},
+            keyboards=listOf(KeyboardType.Text,KeyboardType.Number)){v->val w=Water(date=v[0],ml=v[1].toIntOrNull() ?: error("请输入整数毫升数"));Rules.water(w);vm.persistRecord{vm.repo.saveWater(w)}}
     }
 }
 
@@ -153,11 +168,8 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
             }
         }}
         item { Panel { DetailDisclosure("训练积累") {
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                StatTile(finished.size.toString(),"累计训练",Modifier.weight(1f),accent=Blue)
-                StatTile(number(Analytics.totalVolume(finished)),"累计容量 kg",Modifier.weight(1f))
-                StatTile(Analytics.streak(finished).toString(),"连续天数",Modifier.weight(1f))
-            }
+            MetricGrid(listOf(finished.size.toString() to "累计训练", number(Analytics.totalVolume(finished)) to "累计容量 kg",
+                Analytics.streak(finished).toString() to "连续天数"))
         } } }
         item{Section("身体记录","＋ 记录",{a.body(null)})}
         if(body.isEmpty())item{EmptyPanel("从今天开始记录变化","记录体重和体脂率，数据保存在这台手机。")}

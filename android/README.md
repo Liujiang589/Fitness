@@ -1,7 +1,7 @@
 # 独练 · Android 工程
 
 Kotlin + Jetpack Compose + Room。包名 `app.duolian.local`，`minSdk 26`、`compileSdk/targetSdk 35`，
-当前版本 `versionName 1.23 / versionCode 37`。
+当前版本 `versionName 1.25 / versionCode 39`。
 
 ## 技术栈
 
@@ -25,8 +25,8 @@ app/src/main/java/app/duolian/local/
 ├── timer/       训练/组间休息的前台服务
 ├── outdoor/     户外记录前台服务、独立进程的网络辅助定位
 └── *.kt         29 个界面与视图模型文件（Compose 单 Activity）
-app/src/test/          26 个单元测试文件（263 项测试）
-app/src/androidTest/   14 个仪器测试文件（需真机或模拟器）
+app/src/test/          28 个单元测试文件（276 项测试）
+app/src/androidTest/   17 个仪器测试文件（需真机或模拟器）
 app/src/debug/         仅调试源集：户外预览 Activity，不进入 Release 清单
 ```
 

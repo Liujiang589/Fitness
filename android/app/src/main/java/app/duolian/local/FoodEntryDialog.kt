@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import app.duolian.local.domain.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 private val FoodSpecSaver = listSaver<FoodSpec?, Any>(
     save = { spec -> spec?.let { listOf(it.id, it.name, it.preparation, it.category,
@@ -30,7 +32,9 @@ private val FoodSpecSaver = listSaver<FoodSpec?, Any>(
         saved[6] as Double, saved[7] as String, saved[8] as String, saved[9] as String) })
 
 @Composable internal fun FoodEntryDialog(existing: Food?, date: String, meal: String,
-    recent: List<Food>, busy: Boolean, dismiss: () -> Unit, save: (Food) -> Unit) {
+    recent: List<Food>, busy: Boolean, dismiss: () -> Unit, save: suspend (Food) -> Unit) {
+    var saving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val originalSpec = remember(existing) { existing?.let(NutritionEstimator::fromRecord) }
     val entryId = rememberSaveable(existing?.id) { existing?.id ?: newId() }
     var selected by rememberSaveable(stateSaver = FoodSpecSaver) { mutableStateOf(originalSpec) }
@@ -73,12 +77,26 @@ private val FoodSpecSaver = listSaver<FoodSpec?, Any>(
         }
     }
     val preview = runCatching { buildEntry() }.getOrNull()
-    Dialog(onDismissRequest = { if (!busy) dismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    var confirmLeave by remember { mutableStateOf(false) }
+    val changed = query.isNotBlank() || selected != originalSpec ||
+        grams != (existing?.grams?.toString()?.removeSuffix(".0") ?: "100") ||
+        entryDate != (existing?.date ?: date) || entryMeal != (existing?.meal ?: meal) ||
+        mode != (if (existing != null && originalSpec == null) "历史记录" else "食物库") ||
+        customName != (existing?.name ?: "") || protein != (existing?.protein?.toString() ?: "") ||
+        carbs != (existing?.carbs?.toString() ?: "") || fat != (existing?.fat?.toString() ?: "") ||
+        labelBasis != "每100g" || labelGrams != "100"
+    val close = { if (!busy && !saving) { if (changed) confirmLeave = true else dismiss() } }
+    if (confirmLeave) AlertDialog(onDismissRequest = { confirmLeave = false },
+        title = { Text("放弃这次饮食记录的修改？") }, text = { Text("尚未保存的食物和重量将丢失。") },
+        confirmButton = { TextButton(onClick = { confirmLeave = false; dismiss() }) { Text("放弃修改") } },
+        dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("继续编辑") } })
+    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false,
+        dismissOnClickOutside = false)) {
         Surface(Modifier.fillMaxWidth().padding(16.dp).heightIn(max = maxHeight),
             shape = RoundedCornerShape(28.dp), color = Color.White) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Eyebrow("FOOD / SMART LOG")
+                    Eyebrow("饮食手记")
                     Text(if (existing == null) "食物与重量，交给独练算" else "编辑饮食记录",
                         style = MaterialTheme.typography.titleLarge)
                 }
@@ -198,10 +216,19 @@ private val FoodSpecSaver = listSaver<FoodSpec?, Any>(
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = dismiss, enabled = !busy, modifier = Modifier.weight(1f)) { Text("取消") }
-                    Button(enabled = !busy, modifier = Modifier.weight(1f), onClick = {
-                        runCatching { buildEntry() }.onSuccess(save).onFailure { error = it.message ?: "请检查输入" }
-                    }) { Text(if (busy) "正在保存" else "保存饮食") }
+                    OutlinedButton(onClick = close, enabled = !busy && !saving, modifier = Modifier.weight(1f)) { Text("取消") }
+                    Button(enabled = !busy && !saving, modifier = Modifier.weight(1f), onClick = {
+                        val entry = runCatching { buildEntry() }.getOrElse { error = it.message ?: "请检查输入"; null }
+                        if (entry != null && !saving) {
+                            saving = true; error = null
+                            scope.launch {
+                                try { save(entry); dismiss() }
+                                catch (e: CancellationException) { throw e }
+                                catch (e: Exception) { error = e.message ?: "保存未完成，输入已保留。" }
+                                finally { saving = false }
+                            }
+                        }
+                    }) { Text(if (saving) "正在保存" else "保存饮食") }
                 }
             }
         }

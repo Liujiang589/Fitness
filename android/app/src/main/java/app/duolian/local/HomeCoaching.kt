@@ -46,19 +46,15 @@ import java.time.LocalDate
 }
 
 @Composable internal fun HomeLifeLinks(nutrition: () -> Unit, body: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Surface(onClick = nutrition, color = androidx.compose.ui.graphics.Color.White,
-            shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f)) {
+    val minimum = maxOf(144.dp, textWidth("饮食手记 ›", MaterialTheme.typography.bodySmall) + 36.dp,
+        textWidth("关心身体", MaterialTheme.typography.bodyLarge) + 36.dp)
+    ResponsiveTiles(minimum, 2) { index, area ->
+        val first = index == 0
+        Surface(onClick = if (first) nutrition else body, color = androidx.compose.ui.graphics.Color.White,
+            shape = RoundedCornerShape(20.dp), modifier = area) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("好好吃饭", fontWeight = FontWeight.SemiBold)
-                Text("饮食手记 ›", color = Muted, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        Surface(onClick = body, color = androidx.compose.ui.graphics.Color.White,
-            shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f)) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("关心身体", fontWeight = FontWeight.SemiBold)
-                Text("留下身体记录 ›", color = Muted, style = MaterialTheme.typography.bodySmall)
+                Text(if (first) "好好吃饭" else "关心身体", fontWeight = FontWeight.SemiBold)
+                Text(if (first) "饮食手记 ›" else "留下身体记录 ›", color = Muted, style = MaterialTheme.typography.bodySmall)
             }
         }
     }

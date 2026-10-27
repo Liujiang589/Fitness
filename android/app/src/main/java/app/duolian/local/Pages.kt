@@ -40,17 +40,19 @@ internal class ScreenActions(
     val nutrition: () -> Unit
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun NutritionSummary(food: List<Food>, water: List<Water>, date: String,
     a: ScreenActions, detailed: Boolean = false) {
     val fs = food.filter { it.date == date }
     val ml = water.filter { it.date == date }.sumOf { it.ml }
     val protein = fs.sumOf { it.protein }; val carbs = fs.sumOf { it.carbs }; val fat = fs.sumOf { it.fat }
     Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        ResponsiveHeader(leading = {
             Text(if (date == LocalDate.now().toString()) "今日营养" else "当日营养", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f))
+                modifier = Modifier)
+        }, trailing = {
             if (!detailed) TextButton(onClick = a.nutrition) { Text("饮食手记 ›") }
-        }
+        })
         Text(if (fs.isEmpty()) "吃了什么，记一下就好。" else "食物和重量已记录，营养由独练计算。",
             color = Ink, style = MaterialTheme.typography.bodyMedium)
         NutritionBreakdown(protein, carbs, fat)
@@ -72,11 +74,12 @@ internal class ScreenActions(
                 style = MaterialTheme.typography.bodySmall)
         }
         HorizontalDivider(color = Page)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
             listOf("早餐", "午餐", "晚餐", "加餐", "饮水", "体重").forEachIndexed { i, label ->
                 Column(Modifier.clip(RoundedCornerShape(12.dp)).clickable {
                     when (i) { 4 -> a.auxiliary("water:$date"); 5 -> a.body(null); else -> a.auxiliary("meal:$label:$date") }
-                }.padding(horizontal = 4.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                }.widthIn(min = 48.dp).padding(horizontal = 4.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(if (i == 4) PaleBlue else Page),
                         contentAlignment = Alignment.Center) {
                         Text(listOf("早", "午", "晚", "＋", "水", "秤")[i], color = if (i == 4) Blue else Ink,
@@ -97,22 +100,17 @@ internal class ScreenActions(
     val alerts = remember(sessions, exercises) { Diagnostics.alerts(sessions, exercises) }
     var section by rememberSaveable { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
+    val planListState = rememberLazyListState()
     val today = rememberTrainingDate()
     val focus = remember(plans, sessions, today) { TrainingHome.focus(plans, sessions, today) }
-    LaunchedEffect(section, active?.id) { listState.scrollToItem(0) }
-    LazyColumn(Modifier.fillMaxSize(), state = listState,
+    if (active != null) {
+        key(active.id) { ActiveTraining(active, vm, sessions, exercises, busy, a.ask, a.detail) }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize(), state = if (section == 0) listState else planListState,
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (active != null) {
-            item { ActiveTraining(active, vm, sessions, exercises, busy, a.ask, a.detail) }
-        } else {
-            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                FilterChip(selected = section == 0, onClick = { section = 0 }, label = { Text("今天") })
-                FilterChip(selected = section == 1, onClick = { section = 1 }, label = { Text("计划库") })
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { a.plan(null) }) { Text("＋ 创建计划") }
-            } }
+            item { HomePlanToolbar(section, { section = it }, { a.plan(null) }) }
             if (section == 0) {
                 item { TrainingSpotlight(focus, busy) {
                     when {
@@ -190,7 +188,6 @@ internal class ScreenActions(
         item { TemplateLibrary(vm) }
         if (plans.any { it.weekdays.isNotEmpty() }) item { ScheduleCard(plans, active, busy, vm) }
             }
-        }
     }
 }
 
@@ -206,7 +203,11 @@ internal class ScreenActions(
             (!favoritesOnly || it.favorite)
     }.sortedWith(compareByDescending<Exercise> { it.favorite }.thenBy { it.name }) }
     val listState=rememberLazyListState()
-    LaunchedEffect(query, muscle, equipment, favoritesOnly) { listState.scrollToItem(0) }
+    val filterKey = listOf(query, muscle, equipment, favoritesOnly.toString())
+    var previousFilter by rememberSaveable { mutableStateOf(filterKey) }
+    LaunchedEffect(filterKey) {
+        if (previousFilter != filterKey) { listState.scrollToItem(0); previousFilter = filterKey }
+    }
     val ids=remember(filtered){filtered.map{it.id}.toSet()}
     val playingId by remember(listState,ids) { derivedStateOf {
         val info=listState.layoutInfo
@@ -218,7 +219,8 @@ internal class ScreenActions(
         Row(Modifier.padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AppField(query, { query = it }, placeholder = "搜索动作、肌群或器械", modifier = Modifier.weight(1f))
-            FilledIconButton(onClick = { a.exercise(null) }, modifier = Modifier.size(52.dp),
+            FilledIconButton(onClick = { a.exercise(null) }, modifier = Modifier.size(52.dp)
+                .semantics { contentDescription = "新增自定义动作" },
                 shape = RoundedCornerShape(16.dp)) { Text("＋", fontSize = 26.sp) }
         }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 18.dp),
@@ -297,18 +299,16 @@ internal class ScreenActions(
     var range by rememberSaveable{mutableStateOf("全部")};var selected by rememberSaveable{mutableStateOf<String?>(null)}
     var days by rememberSaveable{mutableStateOf(30)}
     var section by rememberSaveable { mutableIntStateOf(0) }
-    var month by remember{mutableStateOf(java.time.YearMonth.now())}
-    var picked by remember{mutableStateOf<LocalDate?>(null)}
-    val all=sessions.filter{it.endedAt!=null}.sortedByDescending{it.startedAt}
+    var monthText by rememberSaveable{mutableStateOf(java.time.YearMonth.now().toString())}
+    val month = java.time.YearMonth.parse(monthText)
+    var pickedText by rememberSaveable{mutableStateOf<String?>(null)}
+    val picked = pickedText?.let(LocalDate::parse)
+    val all=remember(sessions){sessions.filter{it.endedAt!=null}.sortedByDescending{it.startedAt}}
     val history=all.filter{(picked==null||Analytics.dateOf(it)==picked)&&(range=="全部"||Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()>=LocalDate.now().minusDays(if(range=="近7天")6 else 29))}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
         item { ProgressOverview(all) }
         item {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("训练记录", "身体与饮食", "专业分析").forEachIndexed { i, label ->
-                    FilterChip(selected = section == i, onClick = { section = i }, label = { Text(label) })
-                }
-            }
+            PageSegments(listOf("训练记录", "身体与饮食", "专业分析"), section) { section = it }
         }
         if (section == 1) {
             item { LifestyleBanner(R.drawable.nutrition_daylight, "好好吃饭，\n好好训练", "看长期的变化，也关心今天的感受。") }
@@ -324,10 +324,17 @@ internal class ScreenActions(
             item { RecordsPanel(all) }
         }
         if (section == 0) {
-        item{CalendarCard(all,month,{month=it},picked){ d -> picked = if(picked==d) null else d }}
-        item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("全部","近7天","近30天").forEach{r->ChoicePill(r, range==r, {range=r})}}}
+        item{CalendarCard(all,month,{monthText=it.toString()},picked){ d -> pickedText = if(picked==d) null else d.toString() }}
+        item{Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("全部","近7天","近30天").forEach{r->ChoicePill(r, range==r, {range=r; pickedText=null})}}}
         item{Section("训练记录")}
-        if(history.isEmpty())item{EmptyPanel("还没有训练记录","完成并保存一次训练，就能查看每组明细与容量。")}
+        if(history.isEmpty())item{
+            if (all.isEmpty()) EmptyPanel("还没有训练记录","完成并保存一次训练，就能查看每组明细与容量。")
+            else Panel {
+                Text("这段时间没有训练记录", style=MaterialTheme.typography.titleMedium)
+                Text("可以换个日期，或查看之前的积累。", color=Muted)
+                TextButton(onClick={pickedText=null;range="全部"}) { Text("查看全部记录") }
+            }
+        }
         items(history,key={it.id}){s->Panel{
             Row(verticalAlignment=Alignment.CenterVertically){
                 val day=Instant.ofEpochMilli(s.startedAt).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -343,11 +350,9 @@ internal class ScreenActions(
                 TextButton(onClick={selected=if(selected==s.id)null else s.id}){Text(if(selected==s.id)"收起" else "详情")}
             }
             if(selected==s.id){
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                StatTile("${s.movements.sumOf{it.sets.count{it.done}}}","完成组",Modifier.weight(1f))
-                StatTile(number(Rules.volumeKg(s)),"容量 kg",Modifier.weight(1f))
-                StatTile(kg(Progression.bestOneRm(s)),"最佳 1RM",Modifier.weight(1f), accent=Blue)
-            }
+            val recap = remember(s) { TrainingRecap.from(s) }
+            MetricGrid(listOf(recap.completed.toString() to "完成组数", number(recap.volumeKg) to "容量 kg",
+                recap.movements.toString() to "完成动作"))
             s.movements.forEach{m->
                 HorizontalDivider(color=Page)
                 Row(verticalAlignment=Alignment.CenterVertically){
@@ -355,22 +360,10 @@ internal class ScreenActions(
                     m.supersetGroup?.let{g->Text("超级组 ${('A'.code+g-1).toChar()}",color=Blue,style=MaterialTheme.typography.labelSmall)}
                 }
                 m.sets.forEachIndexed{i,x->Text("${i+1}  ·  ${kg(x.grams)} kg × ${x.reps}  ·  ${x.effectiveKind.label}${x.rpe?.let{"  ·  RPE $it"}?:""}  ·  ${if(x.countsVolume)"计入容量" else if(x.done)"不计容量" else "未完成"}",style=MaterialTheme.typography.bodySmall,color=Muted)}
-                val exercise=exercises.find{it.id==m.exerciseId}
-                if(exercise!=null){
-                    val targetReps=plans.find{it.id==s.planId}?.reps?:10
-                    val earlier=all.filter{it.startedAt<s.startedAt}
-                    val suggestion=Progression.suggestFor(m.exerciseId,earlier,targetReps,exercise.defaultGrams)
-                    if(suggestion.level!=SuggestionLevel.NO_DATA){
-                        Row(Modifier.fillMaxWidth().padding(top=4.dp),verticalAlignment=Alignment.CenterVertically){
-                            Column(Modifier.weight(1f)){
-                                Text(suggestion.headline,color=if(suggestion.level==SuggestionLevel.PROGRESS)Color(0xFF2C8C63) else Muted,style=MaterialTheme.typography.labelLarge)
-                                Text(suggestion.detail,color=Muted,style=MaterialTheme.typography.bodySmall)
-                            }
-                            if(suggestion.level==SuggestionLevel.PROGRESS||suggestion.level==SuggestionLevel.DELOAD)
-                                TextButton(onClick={vm.applySuggestion(exercise,suggestion.deltaGrams)}){Text("应用到默认重量")}
-                        }
-                    }
-                }
+                val best = m.sets.filter { it.countsVolume && it.reps in 1..30 }
+                    .maxOfOrNull { Progression.oneRm(it.grams, it.reps) } ?: 0L
+                if (best > 0) Text("本动作估算 1RM · ${kg(best)} kg", color=Blue,
+                    style=MaterialTheme.typography.bodySmall)
             }
                 TextButton(onClick={a.ask("永久删除这条训练历史？"){vm.act{vm.repo.deleteSession(s.id)}}}){Text("删除记录",color=MaterialTheme.colorScheme.error)}}
         }}
@@ -410,20 +403,16 @@ internal class ScreenActions(
     val minutes = daily.sumOf { it.minutes }
     val streak = remember(sessions) { Analytics.streak(sessions) }
     Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("训练负荷", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleLarge)
+        ResponsiveHeader(leading = { Text("训练负荷", style = MaterialTheme.typography.titleLarge) }, trailing = {
+            Row(Modifier.horizontalScroll(rememberScrollState())) {
             listOf(7, 30, 90).forEach { d ->
                 FilterChip(selected = days == d, onClick = { onDays(d) },
                     label = { Text("${d}天", style = MaterialTheme.typography.labelSmall) },
                     modifier = Modifier.padding(start = 4.dp))
             }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile(number(volume), "容量 kg", Modifier.weight(1f), accent = Blue)
-            StatTile(count.toString(), "训练次数", Modifier.weight(1f))
-            StatTile(streak.toString(), "连续天数", Modifier.weight(1f))
-        }
+            }
+        })
+        MetricGrid(listOf(number(volume) to "容量 kg", count.toString() to "训练次数", streak.toString() to "连续天数"))
         BarChart(values = daily.map { it.volumeKg.toFloat() },
             labels = daily.map { "${it.date.monthValue}/${it.date.dayOfMonth}" },
             labelEvery = when { days <= 7 -> 1; days <= 30 -> 4; else -> 10 })
@@ -442,13 +431,9 @@ internal class ScreenActions(
         val ordered = body.sortedBy { it.date }
         val latest = ordered.last()
         val delta = (latest.grams - ordered.first().grams) / 1000.0
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile(kg(latest.grams), "最近体重 kg", Modifier.weight(1f), accent = Blue)
-            StatTile((if (delta >= 0) "+" else "") + String.format(java.util.Locale.US, "%.1f", delta),
-                "自首次变化 kg", Modifier.weight(1f),
-                accent = if (delta <= 0) Color(0xFF2C8C63) else Ink)
-            StatTile(latest.fatPercent?.let { number(it) + "%" } ?: "—", "最近体脂", Modifier.weight(1f))
-        }
+        MetricGrid(listOf(kg(latest.grams) to "最近体重 kg",
+            ((if (delta >= 0) "+" else "") + String.format(java.util.Locale.US, "%.1f", delta)) to "自首次变化 kg",
+            (latest.fatPercent?.let { number(it) + "%" } ?: "—") to "最近体脂"))
         LineChart(ordered.map { it.grams / 1000f }, Modifier.fillMaxWidth().height(90.dp))
         Text("${ordered.size} 条记录 · ${ordered.first().date} 至 ${ordered.last().date}", color = Muted,
             style = MaterialTheme.typography.bodySmall)

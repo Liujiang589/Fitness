@@ -68,10 +68,11 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
 }
 
 @Composable internal fun Section(title: String, action: String? = null, onClick: () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Ink)
+    ResponsiveHeader(leading = {
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Ink)
+    }, trailing = {
         if (action != null) TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 4.dp)) { Text(action) }
-    }
+    })
 }
 
 @Composable internal fun Stat(value: String, label: String, modifier: Modifier = Modifier, accent: Color = Ink) {
@@ -190,7 +191,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
  */
 @Composable internal fun AppField(value: String, onValueChange: (String) -> Unit, label: String = "",
     modifier: Modifier = Modifier, placeholder: String = "", suffix: String? = null,
-    keyboardType: KeyboardType = KeyboardType.Text, singleLine: Boolean = true) {
+    keyboardType: KeyboardType = KeyboardType.Text, singleLine: Boolean = true, enabled: Boolean = true) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (label.isNotBlank()) FieldLabel(label)
@@ -202,6 +203,7 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = singleLine,
+                enabled = enabled,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink),
                 cursorBrush = SolidColor(Blue),
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
@@ -284,9 +286,9 @@ internal fun stamp(t: Long): String = Instant.ofEpochMilli(t).atZone(ZoneId.syst
             Text(title, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge,
                 color = if (enabled) Ink else Muted)
             subtitle?.let { Text(it, color = Muted, style = MaterialTheme.typography.labelSmall) }
+            trailing?.let { Text(it, color = Blue, style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(top = 4.dp)) }
         }
-        trailing?.let { Text(it, color = Muted, style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(start = 8.dp)) }
         if (onClick != null) Text("›", color = Muted, style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(start = 6.dp))
     }

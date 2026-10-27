@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import app.duolian.local.domain.*
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun QuickSetRow(set: TrainingSet, index: Int, previous: TrainingSet?, next: Boolean,
     enabled: Boolean, busy: Boolean, onEdit: (Long, Int) -> Unit, onComplete: (Long, Int) -> Unit,
     onUndo: () -> Unit, onAdvanced: (TrainingSet) -> Unit, onRemove: (() -> Unit)?) {
@@ -46,35 +47,59 @@ import kotlinx.coroutines.delay
         grams to count
     }
     val values = parsed.getOrNull()
-    LaunchedEffect(weight, reps, set.done, enabled) {
-        if (enabled && !set.done && values != null && (values.first != set.grams || values.second != set.reps)) {
-            delay(600)
-            onEdit(values.first, values.second)
+    fun changeDraft(newWeight: String, newReps: String) {
+        weight = newWeight; reps = newReps
+        if (enabled && !set.done) runCatching {
+            val grams = Rules.parseKg(newWeight)
+            val count = newReps.toIntOrNull() ?: error("次数需为整数")
+            Rules.trainingSet(set.copy(grams = grams, reps = count))
+            onEdit(grams, count)
         }
     }
-    Surface(color = if (set.done) PaleBlue else Page, shape = RoundedCornerShape(16.dp),
+    val minimumField = maxOf(84.dp, textWidth("100", MaterialTheme.typography.bodyLarge) +
+        textWidth("kg", MaterialTheme.typography.labelSmall) + 24.dp)
+    @Composable fun Fields(modifier: Modifier) {
+        Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            CompactSetField(weight, { changeDraft(it, reps) }, "kg", "第${index + 1}组重量", enabled && !set.done,
+                Modifier.weight(1f), KeyboardType.Decimal)
+            Text("×", color = Muted)
+            CompactSetField(reps, { changeDraft(weight, it) }, "次", "第${index + 1}组次数", enabled && !set.done,
+                Modifier.weight(1f), KeyboardType.Number)
+        }
+    }
+    @Composable fun Completion() {
+        Checkbox(set.done, {
+            focus.clearFocus()
+            if (set.done) onUndo() else values?.let { (grams, count) ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onComplete(grams, count)
+            }
+        }, enabled = enabled && !busy && (set.done || values != null),
+            modifier = Modifier.semantics { contentDescription = "第${index + 1}组${if (set.done) "撤销完成" else "完成"}" },
+            colors = CheckboxDefaults.colors(checkedColor = Blue))
+    }
+    Surface(color = if (set.done) PaleBlue else Color.White, shape = RoundedCornerShape(16.dp),
         border = BorderStroke(if (next) 1.5.dp else 1.dp, if (next) Blue else Hairline)) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(if (set.effectiveKind == SetKind.WORK) "${index + 1}" else set.effectiveKind.short,
-                    Modifier.width(27.dp), color = Blue, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelSmall)
-                CompactSetField(weight, { weight = it }, "kg", "第${index + 1}组重量", enabled && !set.done,
-                    Modifier.weight(1f), KeyboardType.Decimal)
-                Text("×", color = Muted)
-                CompactSetField(reps, { reps = it }, "次", "第${index + 1}组次数", enabled && !set.done,
-                    Modifier.weight(.8f), KeyboardType.Number)
-                Checkbox(set.done, {
-                    focus.clearFocus()
-                    if (set.done) onUndo() else values?.let { (grams, count) ->
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onComplete(grams, count)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth < minimumField * 2 + 98.dp) {
+                    Column {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("第${index + 1}组 · ${set.effectiveKind.label}", Modifier.weight(1f), color = Blue,
+                                style = MaterialTheme.typography.labelMedium)
+                            Completion()
+                        }
+                        Fields(Modifier.fillMaxWidth())
                     }
-                }, enabled = enabled && !busy && (set.done || values != null),
-                    modifier = Modifier.semantics { contentDescription = "第${index + 1}组${if (set.done) "撤销完成" else "完成"}" },
-                    colors = CheckboxDefaults.colors(checkedColor = Blue))
+                } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(if (set.effectiveKind == SetKind.WORK) "${index + 1}" else set.effectiveKind.short,
+                        Modifier.width(32.dp), color = Blue, fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.labelSmall)
+                    Fields(Modifier.weight(1f))
+                    Completion()
+                }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+                Column {
                     Text(if (previous == null) "上次：暂无同类型组记录" else "上次 ${kg(previous.grams)} kg × ${previous.reps}",
                         color = Muted, style = MaterialTheme.typography.labelSmall)
                     if (set.done) Text("已保存 · 点勾选可撤销", color = Blue, style = MaterialTheme.typography.labelSmall)
@@ -84,18 +109,19 @@ import kotlinx.coroutines.delay
                         Text("正在保存输入…", color = Muted, style = MaterialTheme.typography.labelSmall)
                     set.rpe?.let { Text("RPE $it", color = Muted, style = MaterialTheme.typography.labelSmall) }
                 }
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 if (previous != null && !set.done) TextButton(enabled = enabled && !busy, onClick = {
-                    weight = kg(previous.grams); reps = previous.reps.toString()
+                    changeDraft(kg(previous.grams), previous.reps.toString())
                 }, contentPadding = PaddingValues(horizontal = 5.dp)) { Text("沿用", style = MaterialTheme.typography.labelSmall) }
                 TextButton(enabled = enabled && !busy && values != null, onClick = {
                     focus.clearFocus()
                     val edited = set.copy(grams = values!!.first, reps = values.second)
                     if (!set.done) onEdit(edited.grams, edited.reps)
-                    weight = kg(set.grams); reps = set.reps.toString()
                     onAdvanced(edited)
                 }, contentPadding = PaddingValues(horizontal = 5.dp)) { Text("设置", style = MaterialTheme.typography.labelSmall) }
                 if (onRemove != null) TextButton(enabled = enabled && !busy, onClick = onRemove,
-                    contentPadding = PaddingValues(0.dp), modifier = Modifier.width(30.dp)) { Text("−", color = Muted) }
+                    contentPadding = PaddingValues(0.dp), modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        .semantics { contentDescription = "删除第${index + 1}组" }) { Text("−", color = Muted) }
             }
         }
     }

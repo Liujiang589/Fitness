@@ -133,6 +133,8 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
                     store.clearBaseline(); loaded = true
                 }
                 error = null
+                if (action in setOf(PAUSE, RESUME, FINISH, DISCARD))
+                    OutdoorSessionGuard.requireCurrent(recorder.run, expectedRunId)
                 when (action) {
                     WALK, RUN -> {
                         check(recorder.run == null) { "已有未结束运动，请先继续或结束它" }
@@ -347,7 +349,8 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
                 ?: if(preparation!=null)"正在定位，可先开始计时计步" else "日常计步不使用 GPS · 点击查看")
             .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
         if (r?.status == OutdoorStatus.ACTIVE) builder.addAction(0, "暂停运动", PendingIntent.getService(this, 1,
-            Intent(this, OutdoorService::class.java).setAction(PAUSE), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+            Intent(this, OutdoorService::class.java).setAction(PAUSE).putExtra("expected_run_id", r.id),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
         if (r != null) builder.addAction(0, "查看 / 结束", open)
         else if(preparation!=null)builder.addAction(0,"取消准备",PendingIntent.getService(this,3,
             Intent(this,OutdoorService::class.java).setAction(CANCEL_PREPARE),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))

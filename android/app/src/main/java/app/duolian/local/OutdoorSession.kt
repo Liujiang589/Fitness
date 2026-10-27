@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,7 +51,7 @@ import kotlin.math.roundToLong
         onDispose{view.keepScreenOn=previous}
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val compact=maxHeight<420.dp
+        val compact=maxHeight<420.dp || LocalDensity.current.fontScale >= 1.5f
         Column(if(compact)Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxSize(),
             verticalArrangement=Arrangement.spacedBy(8.dp)) {
             LiveSignal(fallback,source){settings=true}
@@ -125,11 +126,13 @@ import kotlin.math.roundToLong
 @Composable internal fun WorkoutDashboard(kind: OutdoorKind,metrics: OutdoorMetrics,clockContent: @Composable ()->Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal=24.dp,vertical=4.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         OutdoorDistance(metrics.distance)
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        val metricWidth = maxOf(128.dp, textWidth("00:00:00", MaterialTheme.typography.headlineMedium),
+            textWidth("当前速度 公里/时", MaterialTheme.typography.labelMedium))
+        ResponsiveTiles(metricWidth, 2) { index, area ->
+            if (index == 0) Column(area,verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 clockContent();Text("运动时长",color=Muted,style=MaterialTheme.typography.labelMedium)
             }
-            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+            else Column(area,verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 val value=if(kind==OutdoorKind.RUN) {
                     val speed=metrics.speed
                     if(speed==null || speed<.3)"—" else {
@@ -150,10 +153,14 @@ import kotlin.math.roundToLong
 @Composable private fun OutdoorDistance(meters: Double) {
     // Animate only towards a measured distance; no extrapolation or extra metres are recorded.
     val displayed by animateFloatAsState((meters/1000).toFloat(),tween(650),label="measured distance")
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val style = MaterialTheme.typography.displayLarge.copy(fontWeight=FontWeight.SemiBold, fontFeatureSettings="tnum")
+    val size = listOf(64, 52, 40, 32).firstOrNull { textWidth("888.88", style.copy(fontSize=it.sp)) <= maxWidth } ?: 32
     Column {
         Text("路线距离 · 公里",color=Muted,style=MaterialTheme.typography.labelMedium)
-        Text("%.2f".format(displayed),color=Ink,fontSize=64.sp,lineHeight=74.sp,fontWeight=FontWeight.SemiBold,
-            style=MaterialTheme.typography.displayLarge.copy(fontFeatureSettings="tnum"))
+        Text("%.2f".format(displayed),color=Ink,fontSize=size.sp,lineHeight=(size+10).sp,
+            style=style)
+    }
     }
 }
 

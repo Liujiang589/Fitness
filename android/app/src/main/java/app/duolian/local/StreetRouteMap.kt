@@ -135,18 +135,19 @@ private object StreetMapConsent {
     DisposableEffect(controller, lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> controller?.resume()
-                Lifecycle.Event.ON_PAUSE -> controller?.pause()
+                Lifecycle.Event.ON_RESUME -> runCatching { controller?.resume() }.onFailure { error = true }
+                Lifecycle.Event.ON_PAUSE -> runCatching { controller?.pause() }.onFailure { error = true }
                 else -> Unit
             }
         }
         lifecycle.addObserver(observer)
-        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) controller?.resume()
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+            runCatching { controller?.resume() }.onFailure { error = true }
         onDispose { lifecycle.removeObserver(observer); controller?.destroy() }
     }
     LaunchedEffect(controller, error) { if (error) controller?.destroy() }
     LaunchedEffect(controller) {
-        controller?.map?.setOnMapLoadedListener { loaded = true }
+        runCatching { controller?.map?.setOnMapLoadedListener { loaded = true } }.onFailure { error = true }
         delay(20000)
         if (!loaded) slow = true
     }
@@ -159,11 +160,12 @@ private object StreetMapConsent {
         Box(Modifier.fillMaxWidth().weight(1f)) {
             if (controller != null && !error) AndroidView(factory = {
                 controller.view.apply {
-                    map.setOnMapTouchListener { event ->
-                        if (event.actionMasked == MotionEvent.ACTION_MOVE) { follow = false;controller.map.stopAnimation() }
+                    runCatching { controller.map.setOnMapTouchListener { event ->
+                        if (event.actionMasked == MotionEvent.ACTION_MOVE) { follow = false
+                            runCatching { controller.map.stopAnimation() }.onFailure { error = true } }
                         parent?.requestDisallowInterceptTouchEvent(event.actionMasked != MotionEvent.ACTION_UP &&
                             event.actionMasked != MotionEvent.ACTION_CANCEL)
-                    }
+                    } }.onFailure { error = true }
                 }
             }, modifier = Modifier.fillMaxSize())
             if(!error) Column(Modifier.align(Alignment.TopEnd).padding(8.dp)) {
@@ -216,7 +218,15 @@ private class StreetMapController(context: Context) {
     }
     fun resume() { if(!destroyed && !resumed) {view.onResume();resumed=true} }
     fun pause() { if(!destroyed && resumed) {markerAnimation?.cancel();view.onPause();resumed=false} }
-    fun destroy() { if(!destroyed) {pause();markerAnimation?.cancel();map.stopAnimation();view.onDestroy();destroyed=true;converted.clear();lines.clear()} }
+    fun destroy() {
+        if (destroyed) return
+        destroyed = true
+        runCatching { markerAnimation?.cancel() }
+        runCatching { if (resumed) view.onPause() }; resumed = false
+        runCatching { map.stopAnimation() }
+        runCatching { view.onDestroy() }
+        converted.clear(); lines.clear()
+    }
     private fun coordinate(p: RoutePoint)=converted.getOrPut(p) {
         checkNotNull(converter.coord(LatLng(p.latitude,p.longitude)).convert())
     }

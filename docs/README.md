@@ -1,36 +1,43 @@
 # 文档索引
 
-`docs/` 收录了从 0.x 原型到 V1.23 的全部记录。文件按时间堆积，**不代表当前实现**；判断某个功能现在怎么做的，以最新版本的验证文档和源码为准。
+`docs/` 收录了从 0.x 原型到 V1.25 的全部记录。文件按时间堆积，**不代表当前实现**；判断某个功能现在怎么做的，以最新版本的验证文档和源码为准。
 
 ## 建议阅读顺序
 
 1. [../README.md](../README.md)：项目定位、当前版本、下载与权限
-2. [V1_23_VERIFICATION.md](V1_23_VERIFICATION.md)：当前版本的构建结果、测试数量与未验证边界
-3. [V1_23_STABILITY.md](V1_23_STABILITY.md)：走跑稳定性修复与异常诊断
+2. [V1_25_VERIFICATION.md](V1_25_VERIFICATION.md)：当前版本的构建结果、测试数量与未验证边界
+3. [V1_25_GUIDE.md](V1_25_GUIDE.md)：整体体验、训练输入与完成回顾
 4. [../CHANGELOG.md](../CHANGELOG.md)：各版本的用户可感知变化
 5. [../android/README.md](../android/README.md)：源码结构、构建与开发约定
 
-## 当前版本（V1.23）
+## 当前版本（V1.25）
 
 | 文档 | 内容 |
 |---|---|
+| [V1_25_VERIFICATION.md](V1_25_VERIFICATION.md) | 整体体验优化、测试及实测边界 |
+| [V1_25_GUIDE.md](V1_25_GUIDE.md) | 覆盖安装与本轮变化 |
+| [V1_24_VERIFICATION.md](V1_24_VERIFICATION.md) | 字体资源、窄屏/大字布局、走跑容错与验证边界 |
+| [V1_24_GUIDE.md](V1_24_GUIDE.md) | 覆盖安装与本轮使用变化 |
 | [V1_23_VERIFICATION.md](V1_23_VERIFICATION.md) | SDK缺失依赖、进程隔离、构建验证与实测边界 |
 | [V1_23_STABILITY.md](V1_23_STABILITY.md) | 覆盖安装、走跑检查与异常诊断 |
 | [V1_22_VERIFICATION.md](V1_22_VERIFICATION.md) | 网络辅助、路线隔离、构建测试与实测边界 |
 | [V1_22_LOCATION.md](V1_22_LOCATION.md) | 定位选择、快速开始、位置误差与隐私 |
 | [V1_21_VERIFICATION.md](V1_21_VERIFICATION.md) | 计划编辑细节、输入规则测试与设备验收边界 |
 | [V1_21_PLANS.md](V1_21_PLANS.md) | 本版焦点、专业摘要及输入提示说明 |
-| [V1_23_VERIFICATION.md](V1_23_VERIFICATION.md) | SDK 缺失类引用的依据、进程隔离、263 项测试与未验证边界 |
+| [V1_25_VERIFICATION.md](V1_25_VERIFICATION.md) | 状态恢复、懒加载、延迟保存与表单结果等待的依据，276 项测试 |
+| [V1_25_GUIDE.md](V1_25_GUIDE.md) | 1.25 的用户可感知变化一览 |
+| [V1_23_VERIFICATION.md](V1_23_VERIFICATION.md) | SDK 缺失类引用的依据、进程隔离、263 项测试 |
 | [V1_23_STABILITY.md](V1_23_STABILITY.md) | 走跑启动稳定性的安装与自查步骤 |
 | [V1_20_VERIFICATION.md](V1_20_VERIFICATION.md) | 计划编辑器的改动依据、构建与测试结果 |
 | [V1_20_PLANS.md](V1_20_PLANS.md) | 创建与编辑计划的入口、页面结构与保存行为 |
 | [V1_19_VERIFICATION.md](V1_19_VERIFICATION.md) | 走跑版本的构建、测试、Lint、APK 校验与真机采样 |
 | [V1_19_OUTDOOR.md](V1_19_OUTDOOR.md) | 准备—出发—运动—暂停—回顾的使用说明与数据口径 |
 
-## 近期版本（V1.13 – V1.22）
+## 近期版本（V1.13 – V1.24）
 
 | 版本 | 设计 / 行为 | 验证 |
 |---|---|---|
+| V1.24 | [V1_24_GUIDE.md](V1_24_GUIDE.md) 字体缩放与窄屏适配 | [V1_24_VERIFICATION.md](V1_24_VERIFICATION.md) |
 | V1.20 | [V1_20_PLANS.md](V1_20_PLANS.md) 计划创建与编辑 | [V1_20_VERIFICATION.md](V1_20_VERIFICATION.md) |
 | V1.19 | [V1_19_OUTDOOR.md](V1_19_OUTDOOR.md) 走跑流程与定位口径 | [V1_19_VERIFICATION.md](V1_19_VERIFICATION.md) |
 | V1.18 | [V1_18_ARMS.md](V1_18_ARMS.md) 手臂与腕部姿态修正 | [V1_18_VERIFICATION.md](V1_18_VERIFICATION.md) |
