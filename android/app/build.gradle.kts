@@ -25,8 +25,8 @@ android {
         applicationId = "app.duolian.local"
         minSdk = 26
         targetSdk = 35
-        versionCode = 39
-        versionName = "1.25"
+        versionCode = 40
+        versionName = "1.26"
         manifestPlaceholders["AMAP_ANDROID_KEY"] = amapAndroidKey
         buildConfigField("boolean", "AMAP_CONFIGURED", amapAndroidKey.isNotEmpty().toString())
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://duolian-fitness-download.goodtulip.chatgpt.site/latest.json\"")

@@ -68,3 +68,11 @@ tools/__pycache__/
 /独练-V1.24.apk
 /独练-V1.24-安装包.zip
 !/独练-V1.25-安装包.zip
+# iPhone 网页版是独立工程（含自己的 .git 与 node_modules），不嵌入主仓库
+/iphone-web/
+/独练-V1.25.apk
+/独练-V1.25-安装包.zip
+!/独练-V1.26-账号页面准备版.zip
+/独练-V1.26-账号页面准备版/
+/独练-iPhone网页体验版-*.zip
+/独练-账号登录申请资料-*.zip

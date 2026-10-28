@@ -10,10 +10,13 @@
 4. [../CHANGELOG.md](../CHANGELOG.md)：各版本的用户可感知变化
 5. [../android/README.md](../android/README.md)：源码结构、构建与开发约定
 
-## 当前版本（V1.25）
+## 当前版本（V1.26）
 
 | 文档 | 内容 |
 |---|---|
+| [V1_26_VERIFICATION.md](V1_26_VERIFICATION.md) | 账号页面准备版的实现范围、明确未实现项与测试结果 |
+| [V1_26_GUIDE.md](V1_26_GUIDE.md) | 1.26 可以查看什么、哪些尚未开放 |
+| [ACCOUNT_LOGIN_PLAN.md](ACCOUNT_LOGIN_PLAN.md) | 账号体系的后续规划（未实施） |
 | [V1_25_VERIFICATION.md](V1_25_VERIFICATION.md) | 整体体验优化、测试及实测边界 |
 | [V1_25_GUIDE.md](V1_25_GUIDE.md) | 覆盖安装与本轮变化 |
 | [V1_24_VERIFICATION.md](V1_24_VERIFICATION.md) | 字体资源、窄屏/大字布局、走跑容错与验证边界 |
@@ -33,10 +36,11 @@
 | [V1_19_VERIFICATION.md](V1_19_VERIFICATION.md) | 走跑版本的构建、测试、Lint、APK 校验与真机采样 |
 | [V1_19_OUTDOOR.md](V1_19_OUTDOOR.md) | 准备—出发—运动—暂停—回顾的使用说明与数据口径 |
 
-## 近期版本（V1.13 – V1.24）
+## 近期版本（V1.13 – V1.25）
 
 | 版本 | 设计 / 行为 | 验证 |
 |---|---|---|
+| V1.25 | [V1_25_GUIDE.md](V1_25_GUIDE.md) 体验整理 | [V1_25_VERIFICATION.md](V1_25_VERIFICATION.md) |
 | V1.24 | [V1_24_GUIDE.md](V1_24_GUIDE.md) 字体缩放与窄屏适配 | [V1_24_VERIFICATION.md](V1_24_VERIFICATION.md) |
 | V1.20 | [V1_20_PLANS.md](V1_20_PLANS.md) 计划创建与编辑 | [V1_20_VERIFICATION.md](V1_20_VERIFICATION.md) |
 | V1.19 | [V1_19_OUTDOOR.md](V1_19_OUTDOOR.md) 走跑流程与定位口径 | [V1_19_VERIFICATION.md](V1_19_VERIFICATION.md) |
@@ -63,6 +67,8 @@
 | V1.2 | [V1_2_VERIFICATION.md](V1_2_VERIFICATION.md) |
 
 ## 专题
+
+账号登录尚未上线：参见 [ACCOUNT_LOGIN_PLAN.md](ACCOUNT_LOGIN_PLAN.md)。安卓版入口准备版见 [V1_26_GUIDE.md](V1_26_GUIDE.md) 和 [V1_26_VERIFICATION.md](V1_26_VERIFICATION.md)。申请资料位于项目根目录 `独练-账号登录申请资料-20261028/`；苹果网页版已暂停，邮箱仅为未采纳的备选方案。
 
 | 主题 | 文档 |
 |---|---|

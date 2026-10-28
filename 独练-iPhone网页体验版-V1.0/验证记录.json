@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-28",
+  "web_version": "1.0",
+  "android_changed": false,
+  "automated_tests": 27,
+  "failures": 0,
+  "checks": [
+    "26 domain/storage tests",
+    "1 isolated DOM end-to-end workflow test",
+    "JavaScript syntax checks",
+    "catalog export: 40 exercises, 47 foods"
+  ],
+  "browser_verified": [
+    "narrow home layout",
+    "create plan",
+    "start training",
+    "22.5 kg x 8 set saved",
+    "pause",
+    "reload preserves paused training"
+  ],
+  "browser_limit": "Later browser interactions stalled around native confirmation. Native confirmation was replaced with in-page dialogs and the complete flow passed isolated DOM tests; revised full flow has not completed browser verification.",
+  "not_verified": [
+    "real iPhone Safari",
+    "home-screen installation",
+    "iPhone file sharing",
+    "real-browser offline launch",
+    "phone cellular reachability"
+  ],
+  "source_commit": "14e421d04d9f6518c1ff6cea05a4dc73fab5b525",
+  "deployment_status": "succeeded",
+  "access_mode": "public",
+  "anonymous_http_check": 200,
+  "url": "https://duolian-iphone-trial.goodtulip.chatgpt.site"
+}

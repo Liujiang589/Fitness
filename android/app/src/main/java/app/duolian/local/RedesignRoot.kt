@@ -139,6 +139,7 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
     pending?.let{b->AlertDialog(onDismissRequest={vm.pendingImport.value=null},title={Text("确认替换全部本地数据？")},text={Text("${b.exercises.size} 个动作、${b.plans.size} 份计划、${b.sessions.size} 场训练。现有数据会先保存为恢复备份。")},confirmButton={TextButton(enabled=!busy,onClick=vm::confirmImport){Text("备份并替换")}},dismissButton={TextButton(onClick={vm.pendingImport.value=null}){Text("取消")}})}
     val kind=auxiliary?.substringBefore(':');val auxDate=auxiliary?.split(':')?.let{if(it.size>2)it[2] else if(kind=="water"&&it.size>1)it[1] else LocalDate.now().toString()}?:LocalDate.now().toString()
     when(kind){
+        "account" -> AccountRegistrationDialog { auxiliary = null }
         "outdoor" -> OutdoorPage({ auxiliary = null })
         "rest"->FieldsDialog("组间休息",listOf("秒（0–600）" to rest.toString()),{auxiliary=null},
             keyboards=listOf(KeyboardType.Number)){v->val seconds=v[0].toIntOrNull() ?: error("请输入整数秒数");require(seconds in 0..600){"休息需为0–600秒"};vm.saveRestEdits(seconds)}
@@ -162,10 +163,12 @@ private val EditedPlanSaver = listSaver<Plan?, String>(
                     Text("独",color=Blue,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold)
                 }
                 Column(Modifier.weight(1f).padding(start=14.dp)){
-                    Text("独练者",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.titleLarge,color=Ink)
-                    Text("专注每一次，成为更好的自己",color=Muted,style=MaterialTheme.typography.bodySmall)
+                    Text("本机使用",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.titleLarge,color=Ink)
+                    Text("未登录 · 记录保存在这台手机",color=Muted,style=MaterialTheme.typography.bodySmall)
                 }
             }
+            OutlinedButton(onClick={a.auxiliary("account")}, modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),
+                shape=RoundedCornerShape(14.dp)) { Text("注册 / 登录 · 准备中") }
         }}
         item { Panel { DetailDisclosure("训练积累") {
             MetricGrid(listOf(finished.size.toString() to "累计训练", number(Analytics.totalVolume(finished)) to "累计容量 kg",

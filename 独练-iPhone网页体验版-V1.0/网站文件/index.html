@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f6f8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="独练">
+  <meta name="description" content="独练 iPhone 网页体验版。记录每一组训练，照顾每一天的饮食。">
+  <meta name="referrer" content="no-referrer">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+  <title>独练 · iPhone 体验版</title>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要内容</a>
+  <div id="notice" role="status" hidden></div>
+  <div id="shell">
+    <header class="topbar"><a class="brand" href="#today" aria-label="独练首页"><img src="./icon.svg" width="30" height="30" alt=""><span>独练<span class="edition">网页体验版</span></span></a><button class="icon-button" data-action="profile" aria-label="我的与设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></button></header>
+    <main id="main" tabindex="-1"><div class="empty"><h1>正在打开独练</h1><p>记录每一次，慢慢变得更好。</p></div></main>
+    <nav id="nav" aria-label="主要页面"></nav>
+  </div>
+  <dialog id="sheet" aria-labelledby="sheet-title"><div class="sheet-top"><div><p id="sheet-kicker" class="eyebrow"></p><h2 id="sheet-title"></h2></div><button class="icon-button" data-action="close" aria-label="关闭弹窗">✕</button></div><div id="sheet-body"></div><p id="sheet-error" class="error" role="alert" hidden></p></dialog>
+  <dialog id="confirmation" aria-labelledby="confirm-title"><h2 id="confirm-title">确认一下</h2><p id="confirm-message" class="caption"></p><div class="actions"><button class="secondary" data-answer="cancel">返回</button><button class="primary" data-answer="ok">确认</button></div></dialog>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p>请在 Safari 设置中启用 JavaScript，然后重新打开此页面。</p></noscript>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

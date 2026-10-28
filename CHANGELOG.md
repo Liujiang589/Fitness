@@ -4,8 +4,13 @@
 
 ## 总览
 
+### 安卓账号页面准备版 V1.26（2026-10-28）
+
+「我的」新增明确标注准备状态的注册 / 登录入口；可切换原生注册与登录页面，查看手机号验证码表单和微信 / QQ 接入说明。保留本机使用，尚未接通认证后台，不收集手机号、不发送短信、不创建账号。苹果网页版暂停。详见 `docs/V1_26_GUIDE.md`。
+
 | 版本 | 日期 | 主要变化 |
 |---|---|---|
+| V1.26 | 2026-10-28 | 安卓账号页面准备版：注册/登录入口与界面，服务端未接入，输入保持禁用 |
 | V1.25 | 2026-10-27 | 页面状态恢复、逐组懒加载、输入保存、训练完成回顾与统一排版 |
 | V1.24 | 2026-10-27 | 统一字体、窄屏与大字体重排、辅助定位超时与旧会话操作保护 |
 | V1.25 | 2026-10-27 | 整体体验整理：页面状态恢复、训练列表按行懒加载、输入延迟保存、表单保存有结果、训练结束回顾 |
@@ -35,27 +40,23 @@
 | V1.2 | 2026-10-22 | 改用短版本命名；营养库（USDA 来源）、内联快速记录、界面重做 |
 | 0.2 – 0.12 | 2026-10-20 ~ 22 | 训练核心、HIIT、统计图表、备份 v2、模板库、诊断面板 |
 
-## 当前版本明细（V1.25）
+## 当前版本明细（V1.26）
 
-- **状态恢复**：底部页签与饮食页用 `SaveableStateHolder` 保存界面状态，动作搜索/筛选、历史月份与日期、工具输入在切换后恢复；离开的页面仍会退出组合，动作预览不会在后台继续播放。
-- **训练列表**：每个动作标题、每一组和操作区域分别按需显示，不再把整份训练塞进一个列表项；超级组顺序、上次参考、示范与组类型全部保留。
-- **输入保存**：有效重量/次数由 ViewModel 延迟 600ms 保存，滚动或切页不会取消；暂停、结束、导出前先写入待保存值；完成/删除/放弃时清理对应任务。
-- **保存反馈**：体重、饮水、自定义动作、组设置与饮食窗口等待真实写入成功再关闭，失败显示原因并保留输入；取消已修改内容会二次确认。
-- **训练收尾**：结束后显示已保存回顾（动作、组数、用时、容量），并提示未完成组不计容量，可直接进入历史。
-- **历史与统计**：空筛选提供「查看全部记录」；1RM 按动作分别显示；移除按更早记录反复调整默认重量的按钮。
-- **走跑**：当天无采集记录显示「尚未采集」，不再当作 0 步；日期刷新跟随页面生命周期。
-- **回归**：276 项 JVM 测试通过；详见 [docs/V1_25_VERIFICATION.md](docs/V1_25_VERIFICATION.md) 与 [docs/V1_25_GUIDE.md](docs/V1_25_GUIDE.md)。
+- **账号入口**：「我的」原头像卡改为「本机使用」，标明当前未登录；点「注册 / 登录 · 准备中」进入原生全屏账号页。
+- **页面内容**：注册/登录视图可切换，展示手机号验证码表单样式与微信 / QQ 接入说明，可随时返回继续本机使用。
+- **边界明确**：本版**没有**真实注册或登录服务——手机号、验证码、发码与提交按钮全部禁用并标注「尚未开放」，微信 / QQ 仅打开说明，不做假跳转或假授权。
+- **数据不变**：数据库 schema 1、备份 v4 沿用，未新增账号字段，旧记录归属本机。
+- **回归**：276 项 JVM 测试通过；详见 [docs/V1_26_VERIFICATION.md](docs/V1_26_VERIFICATION.md)、[docs/V1_26_GUIDE.md](docs/V1_26_GUIDE.md) 与 [docs/ACCOUNT_LOGIN_PLAN.md](docs/ACCOUNT_LOGIN_PLAN.md)。
 
-### 上一版（V1.23）要点
+### 上一版（V1.25）要点
 
-- 换用无缺失类引用的高德组合 SDK，网络辅助定位隔离到独立进程，新增应用内异常诊断。
-- 详见 [docs/V1_23_VERIFICATION.md](docs/V1_23_VERIFICATION.md)。
+- 整体体验整理：页面状态恢复、训练列表按行懒加载、输入延迟保存、表单保存有结果、训练结束回顾。
 
 ## 历史版本明细
 
 | 版本 | 文档 |
 |---|---|
-| V1.24 – V1.25 | [V1_24_VERIFICATION](docs/V1_24_VERIFICATION.md)、[V1_25_VERIFICATION](docs/V1_25_VERIFICATION.md) |
+| V1.24 – V1.26 | [V1_24_VERIFICATION](docs/V1_24_VERIFICATION.md)、[V1_25_VERIFICATION](docs/V1_25_VERIFICATION.md) |
 | V1.20 – V1.23 | [V1_20_VERIFICATION](docs/V1_20_VERIFICATION.md)、[V1_23_VERIFICATION](docs/V1_23_VERIFICATION.md) |
 | V1.19 | [V1_19_VERIFICATION](docs/V1_19_VERIFICATION.md)、[V1_20_VERIFICATION](docs/V1_20_VERIFICATION.md) |
 | V1.12 – V1.18 | [V1_12_VERIFICATION](docs/V1_12_VERIFICATION.md)、[V1_13_VERIFICATION](docs/V1_13_VERIFICATION.md)、[V1_14_VERIFICATION](docs/V1_14_VERIFICATION.md)、[V1_15_VERIFICATION](docs/V1_15_VERIFICATION.md)、[V1_16_VERIFICATION](docs/V1_16_VERIFICATION.md)、[V1_17_VERIFICATION](docs/V1_17_VERIFICATION.md)、[V1_18_VERIFICATION](docs/V1_18_VERIFICATION.md) |
