@@ -35,6 +35,8 @@ import kotlinx.coroutines.delay
     var baseReps by remember(set.id) { mutableIntStateOf(set.reps) }
     val focus = LocalFocusManager.current
     val haptic = LocalHapticFeedback.current
+    var menu by remember(set.id) { mutableStateOf(false) }
+    LaunchedEffect(busy, enabled) { if (busy || !enabled) menu = false }
     LaunchedEffect(set.grams, set.reps, set.done) {
         if (set.done || weight == kg(baseWeight)) weight = kg(set.grams)
         if (set.done || reps == baseReps.toString()) reps = set.reps.toString()
@@ -49,7 +51,7 @@ import kotlinx.coroutines.delay
     val values = parsed.getOrNull()
     fun changeDraft(newWeight: String, newReps: String) {
         weight = newWeight; reps = newReps
-        if (enabled && !set.done) runCatching {
+        if (enabled && !busy && !set.done) runCatching {
             val grams = Rules.parseKg(newWeight)
             val count = newReps.toIntOrNull() ?: error("次数需为整数")
             Rules.trainingSet(set.copy(grams = grams, reps = count))
@@ -60,10 +62,10 @@ import kotlinx.coroutines.delay
         textWidth("kg", MaterialTheme.typography.labelSmall) + 24.dp)
     @Composable fun Fields(modifier: Modifier) {
         Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            CompactSetField(weight, { changeDraft(it, reps) }, "kg", "第${index + 1}组重量", enabled && !set.done,
+            CompactSetField(weight, { changeDraft(it, reps) }, "kg", "第${index + 1}组重量", enabled && !busy && !set.done,
                 Modifier.weight(1f), KeyboardType.Decimal)
             Text("×", color = Muted)
-            CompactSetField(reps, { changeDraft(weight, it) }, "次", "第${index + 1}组次数", enabled && !set.done,
+            CompactSetField(reps, { changeDraft(weight, it) }, "次", "第${index + 1}组次数", enabled && !busy && !set.done,
                 Modifier.weight(1f), KeyboardType.Number)
         }
     }
@@ -78,51 +80,67 @@ import kotlinx.coroutines.delay
             modifier = Modifier.semantics { contentDescription = "第${index + 1}组${if (set.done) "撤销完成" else "完成"}" },
             colors = CheckboxDefaults.colors(checkedColor = Blue))
     }
+    @Composable fun SetMenu() {
+        Box {
+            TextButton(onClick = { menu = true }, enabled = enabled && !busy,
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .semantics { contentDescription = "第${index + 1}组更多选项" }, contentPadding = PaddingValues(4.dp)) {
+                Text("${index + 1} ···", color = if (next) Blue else Muted, style = MaterialTheme.typography.labelMedium)
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (previous != null && !set.done) DropdownMenuItem(text = { Text("沿用上次重量和次数") },
+                    onClick = { menu = false; changeDraft(kg(previous.grams), previous.reps.toString()) })
+                DropdownMenuItem(text = { Text("组类型 / RPE / 休息") }, enabled = values != null, onClick = {
+                    menu = false; focus.clearFocus()
+                    values?.let { (grams, count) ->
+                        val edited = set.copy(grams = grams, reps = count)
+                        if (!set.done) onEdit(grams, count)
+                        onAdvanced(edited)
+                    }
+                })
+                if (onRemove != null) DropdownMenuItem(text = { Text("删除这一组", color = MaterialTheme.colorScheme.error) },
+                    onClick = { menu = false; onRemove() })
+            }
+        }
+    }
     Surface(color = if (set.done) PaleBlue else Color.White, shape = RoundedCornerShape(16.dp),
         border = BorderStroke(if (next) 1.5.dp else 1.dp, if (next) Blue else Hairline)) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (maxWidth < minimumField * 2 + 98.dp) {
+                if (set.done) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        SetMenu()
+                        Column(Modifier.weight(1f)) {
+                            Text("${kg(set.grams)} kg × ${set.reps} 次", style = MaterialTheme.typography.bodyLarge)
+                            Text("已完成 · ${set.effectiveKind.label}", color = Muted, style = MaterialTheme.typography.labelSmall)
+                        }
+                        Completion()
+                    }
+                } else if (maxWidth < minimumField * 2 + 116.dp) {
                     Column {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("第${index + 1}组 · ${set.effectiveKind.label}", Modifier.weight(1f), color = Blue,
+                            SetMenu()
+                            Text(if (next) "当前组 · ${set.effectiveKind.label}" else set.effectiveKind.label, Modifier.weight(1f), color = Blue,
                                 style = MaterialTheme.typography.labelMedium)
                             Completion()
                         }
                         Fields(Modifier.fillMaxWidth())
                     }
                 } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text(if (set.effectiveKind == SetKind.WORK) "${index + 1}" else set.effectiveKind.short,
-                        Modifier.width(32.dp), color = Blue, fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.labelSmall)
+                    SetMenu()
                     Fields(Modifier.weight(1f))
                     Completion()
                 }
             }
                 Column {
-                    Text(if (previous == null) "上次：暂无同类型组记录" else "上次 ${kg(previous.grams)} kg × ${previous.reps}",
+                    if (!set.done && previous != null) Text("上次 ${kg(previous.grams)} kg × ${previous.reps} 次",
                         color = Muted, style = MaterialTheme.typography.labelSmall)
-                    if (set.done) Text("已保存 · 点勾选可撤销", color = Blue, style = MaterialTheme.typography.labelSmall)
-                    else if (parsed.isFailure) Text(parsed.exceptionOrNull()?.message ?: "请检查输入",
+                    if (!set.done && parsed.isFailure) Text(parsed.exceptionOrNull()?.message ?: "请检查输入",
                         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                    else if (values != null && (values.first != set.grams || values.second != set.reps))
+                    else if (!set.done && values != null && (values.first != set.grams || values.second != set.reps))
                         Text("正在保存输入…", color = Muted, style = MaterialTheme.typography.labelSmall)
                     set.rpe?.let { Text("RPE $it", color = Muted, style = MaterialTheme.typography.labelSmall) }
                 }
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                if (previous != null && !set.done) TextButton(enabled = enabled && !busy, onClick = {
-                    changeDraft(kg(previous.grams), previous.reps.toString())
-                }, contentPadding = PaddingValues(horizontal = 5.dp)) { Text("沿用", style = MaterialTheme.typography.labelSmall) }
-                TextButton(enabled = enabled && !busy && values != null, onClick = {
-                    focus.clearFocus()
-                    val edited = set.copy(grams = values!!.first, reps = values.second)
-                    if (!set.done) onEdit(edited.grams, edited.reps)
-                    onAdvanced(edited)
-                }, contentPadding = PaddingValues(horizontal = 5.dp)) { Text("设置", style = MaterialTheme.typography.labelSmall) }
-                if (onRemove != null) TextButton(enabled = enabled && !busy, onClick = onRemove,
-                    contentPadding = PaddingValues(0.dp), modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                        .semantics { contentDescription = "删除第${index + 1}组" }) { Text("−", color = Muted) }
-            }
         }
     }
 }

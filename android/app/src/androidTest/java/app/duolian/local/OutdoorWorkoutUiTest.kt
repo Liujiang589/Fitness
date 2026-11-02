@@ -67,6 +67,22 @@ class OutdoorWorkoutUiTest {
         ui.onNodeWithText("返回运动页").performClick()
         assertEquals(1, dismissed); assertEquals(0, confirmed)
     }
+    @Test fun failedSaveShowsErrorAndAllowsRetry() {
+        var confirmed = 0
+        val r = OutdoorRun(kind = OutdoorKind.WALK, startedAt = 1000)
+        ui.setContent { DuolianTheme { WorkoutExitDialog(r, WorkoutExit.SAVE, false, false,
+            dismiss = {}, confirm = { confirmed++ }, error = "保存失败，请重试") } }
+        ui.onNodeWithText("保存失败，请重试").assertIsDisplayed()
+        ui.onNodeWithText("结束并保存").assertIsEnabled().performClick()
+        assertEquals(1, confirmed)
+    }
+    @Test fun pendingSaveCannotBeDismissedOrRepeated() {
+        val r = OutdoorRun(kind = OutdoorKind.WALK, startedAt = 1000)
+        ui.setContent { DuolianTheme { WorkoutExitDialog(r, WorkoutExit.SAVE, false, true,
+            dismiss = { error("pending save") }, confirm = { error("duplicate save") }) } }
+        ui.onNodeWithText("正在处理…").assertIsNotEnabled()
+        ui.onNodeWithText("返回运动页").assertIsNotEnabled()
+    }
     @Test fun emptyRouteSaveExplainsWhatWillBeKept() {
         var confirmed = 0
         val r = OutdoorRun(kind = OutdoorKind.WALK, startedAt = 1000)

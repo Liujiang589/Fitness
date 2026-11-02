@@ -139,6 +139,10 @@ object AnatomyMesh {
                 MotionPropKind.MAT -> Unit
                 MotionPropKind.CABLE,MotionPropKind.ROPE -> tube(a,b,.008f)
                 MotionPropKind.PAD,MotionPropKind.ROLLER -> tube(a,b,.070f)
+                MotionPropKind.FOOT_PLATE -> {
+                    val normal=prop.normal ?: MotionPoint(0f,1f)
+                    box((a+b)*.5f,axis,cross(normal,axis).unit(),normal,(b-a).length()*.5f,.20f,.025f)
+                }
                 else -> tube(a,b,.025f)
             }
         }

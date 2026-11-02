@@ -73,6 +73,19 @@ object AthleteBody {
         val restShoulder=(rest("upperarm_l")+rest("upperarm_r"))*.5f
         val torsoScale=(chest-pelvis).length()/(restShoulder.y-restPelvis.y)
         val origins=Array(bones.size){pelvis};val rotations=Array(bones.size){body};val scales=FloatArray(bones.size){1f}
+        fun footFrame(left: Boolean): FootFrame {
+            val ankle=pose[if(left)MotionJoint.ANKLE_L else MotionJoint.ANKLE_R]
+            val toe=pose[if(left)MotionJoint.TOE_L else MotionJoint.TOE_R]
+            val knee=pose[if(left)MotionJoint.KNEE_L else MotionJoint.KNEE_R]
+            // The ball has a fixed rest-space drop. Recover the authored absolute frame.
+            val base=FootKinematics.frame(kind,left,knee,ankle,0f)
+            if(kind !in setOf(MotionKind.STANDING_CALF,MotionKind.SEATED_CALF))return base
+            val delta=toe-ankle
+            val angle=atan2(delta.y,delta.x)-atan2(FootKinematics.restBall.y,FootKinematics.restBall.x)
+            return FootFrame(MotionPoint(cos(angle),sin(angle)),MotionPoint(-sin(angle),cos(angle)))
+        }
+        val leftFoot=footFrame(true);val rightFoot=footFrame(false)
+        val leftFootRest=rest("foot_l");val rightFootRest=rest("foot_r")
         val gripping=pose.props.any { it.kind in setOf(MotionPropKind.BARBELL,MotionPropKind.DUMBBELL,
             MotionPropKind.BAR,MotionPropKind.ROPE,MotionPropKind.CABLE) } || kind in setOf(MotionKind.PULLUP,MotionKind.HANGING_RAISE)
         for(i in bones.indices) {
@@ -115,8 +128,12 @@ object AthleteBody {
                 }
                 name.startsWith("thigh_") -> { origin=joint(MotionJoint.HIP_L,MotionJoint.HIP_R);end=joint(MotionJoint.KNEE_L,MotionJoint.KNEE_R) }
                 name.startsWith("calf_") -> { origin=joint(MotionJoint.KNEE_L,MotionJoint.KNEE_R);end=joint(MotionJoint.ANKLE_L,MotionJoint.ANKLE_R) }
-                name.startsWith("foot_") -> { origin=joint(MotionJoint.ANKLE_L,MotionJoint.ANKLE_R);end=joint(MotionJoint.TOE_L,MotionJoint.TOE_R) }
-                name=="ball_l" || name=="ball_r" -> origin=joint(MotionJoint.TOE_L,MotionJoint.TOE_R)
+                name.startsWith("foot_") -> {
+                    origin=joint(MotionJoint.ANKLE_L,MotionJoint.ANKLE_R)
+                    val foot=if(left)leftFoot else rightFoot
+                    val x=foot.forward;val y=foot.up;val z=foot.side
+                    r=M(floatArrayOf(x.x,y.x,z.x,x.y,y.y,z.y,x.z,y.z,z.z))
+                }
                 gripping && name.contains("_0") && !name.contains("leaf") -> {
                     val thumb=name.startsWith("thumb")
                     val angle=if(thumb).38f else if(name.contains("_01")) .85f else 1.05f
@@ -132,6 +149,15 @@ object AthleteBody {
             origins[i]=origin;rotations[i]=r
         }
         val posed=Array(data.p.size) { v ->
+            // A shoe's sole is rigid; blending it with calf bones tears and folds the heel/toe.
+            if(data.p[v].y<=.09501f) {
+                val left=data.p[v].z>0f
+                val foot=if(left)leftFoot else rightFoot
+                val footRest=if(left)leftFootRest else rightFootRest
+                val ankle=pose[if(left)MotionJoint.ANKLE_L else MotionJoint.ANKLE_R]
+                return@Array AnatomyVertex(ankle+foot.map(data.p[v]-footRest),foot.map(data.n[v]).unit(),
+                    MusclePart.entries[data.vertexParts[v]])
+            }
             var p=MotionPoint(0f,0f);var n=MotionPoint(0f,0f)
             for(slot in 0..3) {
                 val offset=v*4+slot;val weight=data.weights[offset]

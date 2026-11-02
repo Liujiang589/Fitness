@@ -4,12 +4,26 @@ data class SetTarget(val movement: Movement, val set: TrainingSet, val index: In
 data class PreviousMovement(val session: Session, val movement: Movement)
 
 object TrainingAssist {
-    fun previous(current: Session, exerciseId: String, sessions: List<Session>): PreviousMovement? = sessions
-        .filter { it.id != current.id && it.endedAt != null && it.endedAt <= current.startedAt }
-        .sortedByDescending { it.startedAt }
-        .firstNotNullOfOrNull { session -> session.movements.firstOrNull {
-            it.exerciseId == exerciseId && it.sets.any { set -> set.countsVolume }
-        }?.let { PreviousMovement(session, it) } }
+    fun previous(current: Session, exerciseId: String, sessions: List<Session>): PreviousMovement? =
+        previousByExercise(current.id, current.startedAt, setOf(exerciseId), sessions)[exerciseId]
+
+    /** One pass for the whole plan; equal timestamps retain the original input order. */
+    fun previousByExercise(currentId: String, startedAt: Long, exerciseIds: Set<String>,
+        sessions: List<Session>): Map<String, PreviousMovement> {
+        if (exerciseIds.isEmpty()) return emptyMap()
+        val result = mutableMapOf<String, PreviousMovement>()
+        for (session in sessions) {
+            if (session.id == currentId || session.endedAt == null || session.endedAt > startedAt) continue
+            for (movement in session.movements) {
+                if (movement.exerciseId !in exerciseIds) continue
+                val previous = result[movement.exerciseId]
+                if (previous != null && previous.session.startedAt >= session.startedAt) continue
+                if (movement.sets.none { it.countsVolume }) continue
+                result[movement.exerciseId] = PreviousMovement(session, movement)
+            }
+        }
+        return result
+    }
 
     fun reference(movement: Movement, index: Int, previous: Movement?): TrainingSet? {
         val current = movement.sets[index]

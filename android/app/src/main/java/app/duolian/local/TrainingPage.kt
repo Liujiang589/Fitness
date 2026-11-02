@@ -20,13 +20,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.duolian.local.domain.*
 import kotlinx.coroutines.delay
 
 /** Each set is a lazy item: long plans no longer compose every field at once. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun ActiveTraining(s: Session, vm: MainViewModel, sessions: List<Session>,
     exercises: List<Exercise>, busy: Boolean, ask: (String, () -> Unit) -> Unit, showGuide: (Exercise) -> Unit) {
     var edit by remember { mutableStateOf<Pair<String, TrainingSet>?>(null) }
+    var focusOnly by rememberSaveable(s.id) { mutableStateOf(true) }
+    val saveError by vm.draftSaveError.collectAsStateWithLifecycle()
     val next = remember(s.movements) { TrainingAssist.next(s) }
     val owner = LocalLifecycleOwner.current
     LaunchedEffect(s.restDeadline, s.pausedAt) {
@@ -40,37 +44,67 @@ import kotlinx.coroutines.delay
         }
     }
     val listState = rememberLazyListState()
+    val visibleIds = remember(s.movements, focusOnly) { TrainingFocus.visibleMovements(s, focusOnly).map { it.id } }
+    LaunchedEffect(focusOnly, visibleIds) { if (focusOnly) listState.scrollToItem(0) }
     val known = remember(exercises) { exercises.associateBy { it.id } }
-    val references = remember(s.id, sessions) {
-        s.movements.associate { it.id to TrainingAssist.previous(s, it.exerciseId, sessions) }
+    val history = remember(sessions) { sessions.filter { it.endedAt != null } }
+    val exerciseIds = remember(s.movements) { s.movements.map { it.exerciseId }.toSet() }
+    val references = rememberBackgroundResult(s.id, s.startedAt, exerciseIds, history) {
+        TrainingAssist.previousByExercise(s.id, s.startedAt, exerciseIds, history)
     }
     LazyColumn(Modifier.fillMaxSize(), state = listState,
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item(key = "training-header", contentType = "header") { ActiveTrainingHeader(s, vm, busy, next) }
-        next?.movement?.let { movement -> known[movement.exerciseId]?.takeIf { it.name == movement.name } }
-            ?.let { exercise -> item(key = "movement-preview", contentType = "guide") {
-                MovementDiscovery(exercise) { showGuide(exercise) }
-            } }
+        item(key = "training-mode", contentType = "mode") {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = focusOnly, onClick = { focusOnly = true }, label = { Text("专注当前动作") })
+                FilterChip(selected = !focusOnly, onClick = { focusOnly = false }, label = { Text("查看全部动作") })
+            }
+        }
+        saveError?.let { reason -> item(key = "training-save-error", contentType = "error") {
+            Panel {
+                Text(reason, color = MaterialTheme.colorScheme.error)
+                Button(onClick = vm::retryTrainingInputs, enabled = !busy) { Text("重试保存输入") }
+            }
+        } }
         s.movements.forEachIndexed { movementIndex, m ->
-            val previous = references[m.id]
+            if (m.id !in visibleIds) return@forEachIndexed
+            val previous = references?.get(m.exerciseId)
             item(key = "movement-${m.id}", contentType = "movement-header") {
+                var menu by remember { mutableStateOf(false) }
+                val exercise = known[m.exerciseId]?.takeIf { it.name == m.name }
+                val guide = remember(exercise) { exercise?.let { ExerciseGuides.find(it) } }
                 Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Eyebrow("动作 ${movementIndex + 1} / ${s.movements.size}")
                     ResponsiveHeader(leading = {
                         Text(m.name, style = MaterialTheme.typography.titleLarge)
                     }, trailing = {
-                        Text("${m.sets.count { it.done }}/${m.sets.size} 组", color = Blue,
-                            style = MaterialTheme.typography.labelMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${m.sets.count { it.done }}/${m.sets.size} 组", color = Blue,
+                                style = MaterialTheme.typography.labelMedium)
+                            Box {
+                                TextButton(onClick = { menu = true }, enabled = !busy) { Text("选项") }
+                                DropdownMenu(expanded = menu && !busy, onDismissRequest = { menu = false }) {
+                                    if (exercise != null) DropdownMenuItem(text = { Text("查看动作示范") },
+                                        onClick = { menu = false; showGuide(exercise) })
+                                    DropdownMenuItem(text = { Text("添加递减组") }, enabled = s.pausedAt == null && m.sets.size < 100,
+                                        onClick = { menu = false; vm.addDrop(m.id) })
+                                }
+                            }
+                        }
                     })
                     m.supersetGroup?.let { Text("超级组 ${('A'.code + it - 1).toChar()} · 按顺序交替完成",
                         color = Blue, style = MaterialTheme.typography.bodySmall) }
-                    Text(previous?.let { "上次 ${stamp(it.session.startedAt)}" } ?: "首次记录，按实际表现填写",
+                    Text(if (references == null) "正在读取上次记录…" else
+                        previous?.let { "上次 ${stamp(it.session.startedAt)}" } ?: "首次记录，按实际表现填写",
                         color = Muted, style = MaterialTheme.typography.bodySmall)
-                    known[m.exerciseId]?.takeIf { it.name == m.name }?.let { e ->
-                        TextButton(onClick = { showGuide(e) }, contentPadding = PaddingValues(horizontal = 0.dp)) {
-                            Text("查看动作示范与要领 ›")
+                    if (guide != null && m.id == next?.movement?.id) {
+                        MuscleFocusCard(guide, compact = true)
+                        Text(ExerciseCoaching.cue(guide), color = Muted, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { showGuide(checkNotNull(exercise)) }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                            Text("播放动作示范 ›")
                         }
                     }
                 }
@@ -88,8 +122,6 @@ import kotlinx.coroutines.delay
                     Row(Modifier.fillMaxWidth()) {
                         TextButton(enabled = s.pausedAt == null && !busy && m.sets.size < 100,
                             onClick = { vm.act { vm.repo.addSet(m.id) } }, modifier = Modifier.weight(1f)) { Text("＋ 添加一组") }
-                        TextButton(enabled = s.pausedAt == null && !busy && m.sets.size < 100,
-                            onClick = { vm.addDrop(m.id) }, modifier = Modifier.weight(1f)) { Text("＋ 递减组") }
                     }
                     m.note.takeIf { it.isNotBlank() }?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
                 }
@@ -117,35 +149,33 @@ import kotlinx.coroutines.delay
             while (true) { value = System.currentTimeMillis(); delay(1000) }
         }
     }
-        Panel(color=Night){
+        Panel {
             Row(verticalAlignment=Alignment.CenterVertically){
-                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Volt))
-                Text(if(s.pausedAt==null)"正在训练" else "训练已暂停",Modifier.padding(start=8.dp).weight(1f),color=Volt,style=MaterialTheme.typography.labelLarge)
-                TextButton(enabled=!busy,onClick=vm::togglePause){Text(if(s.pausedAt==null)"暂停" else "继续",color=Volt)}
+                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Blue))
+                Text(if(s.pausedAt==null)"正在训练" else "训练已暂停",Modifier.padding(start=8.dp).weight(1f),color=Blue,style=MaterialTheme.typography.labelLarge)
+                TextButton(enabled=!busy,onClick=vm::togglePause){Text(if(s.pausedAt==null)"暂停" else "继续",color=Blue)}
             }
-            Text(s.title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold,color=Color.White)
+            Text(s.title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold,color=Ink)
             val resting = Rules.restMs(s,now) > 0
-            Text(if (s.pausedAt != null) "计时已暂停，准备好再继续" else if (resting) "放松呼吸，稍作休息" else "专注眼前这一组", color=OnDarkMuted,
+            Text(if (s.pausedAt != null) "计时已暂停，准备好再继续" else if (resting) "放松呼吸，稍作休息" else "专注眼前这一组", color=Muted,
                 style=MaterialTheme.typography.bodyMedium)
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val value = if (resting) clock(Rules.restMs(s,now)) else clock(Rules.elapsedMs(s,now))
-                val style = listOf(MaterialTheme.typography.displayMedium, MaterialTheme.typography.headlineLarge,
+                val style = listOf(if (resting) MaterialTheme.typography.displaySmall else MaterialTheme.typography.headlineSmall, MaterialTheme.typography.headlineSmall,
                     MaterialTheme.typography.headlineSmall, MaterialTheme.typography.bodyLarge)
                     .firstOrNull { textWidth(value, it) <= maxWidth } ?: MaterialTheme.typography.bodyLarge
-                Text(value, style=style, fontWeight=FontWeight.SemiBold, color=Volt)
+                Text(value, style=style, fontWeight=FontWeight.SemiBold, color=Blue)
             }
-            Text(if (resting) "休息剩余" else "本次训练用时", color=OnDarkMuted,
+            Text(if (resting) "休息剩余" else "本次训练用时", color=Muted,
                 style=MaterialTheme.typography.labelMedium)
             val completed=s.movements.sumOf{it.sets.count{set->set.done}};val total=s.movements.sumOf{it.sets.size}
-            var showStats by rememberSaveable(s.id) { mutableStateOf(false) }
-            TextButton(onClick={showStats=!showStats},modifier=Modifier.fillMaxWidth()) {
-                Text(if(showStats) "收起本次统计" else "查看本次统计",color=Volt)
+            DetailDisclosure("本次统计") {
+                MetricGrid(listOf("$completed / $total" to "完成组数",
+                    number(Rules.volumeKg(s)) to "训练容量 kg", clock(Rules.elapsedMs(s,now)) to "总用时"))
             }
-            if(showStats) MetricGrid(listOf("$completed / $total" to "完成组数",
-                number(Rules.volumeKg(s)) to "训练容量 kg", clock(Rules.elapsedMs(s,now)) to "总用时"))
-            LinearProgressIndicator(progress={if(total==0)0f else completed.toFloat()/total},modifier=Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),color=Volt,trackColor=DarkSeparator)
+            LinearProgressIndicator(progress={if(total==0)0f else completed.toFloat()/total},modifier=Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(3.dp)),color=Blue,trackColor=PaleBlue)
             Text(next?.let { "接下来 · ${it.movement.name} · 第 ${it.index + 1} 组" } ?: "全部组已完成，随时保存这次训练。",
-                color=OnDarkMuted,style=MaterialTheme.typography.bodySmall)
-            if(Rules.restMs(s,now)>0)OutlinedButton(enabled=!busy && s.pausedAt==null,onClick={vm.skipRest()},modifier=Modifier.fillMaxWidth()){Text("跳过休息",color=Volt)}
+                color=Muted,style=MaterialTheme.typography.bodySmall)
+            if(Rules.restMs(s,now)>0)OutlinedButton(enabled=!busy && s.pausedAt==null,onClick={vm.skipRest()},modifier=Modifier.fillMaxWidth()){Text("跳过休息",color=Blue)}
         }
 }

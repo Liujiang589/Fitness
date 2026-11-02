@@ -380,9 +380,11 @@ class OutdoorViewModel(app: Application) : AndroidViewModel(app) {
             dismissButton = { TextButton(onClick = { consent = null }) { Text("取消") } }) }
         if (exit != null && active != null) WorkoutExitDialog(active, exit!!,
             recording = live.running && live.session?.status == OutdoorStatus.ACTIVE, busy = working || live.busy,
+            error = message ?: live.error,
             dismiss = { exit = null }, confirm = {
-                vm.command(if (exit == WorkoutExit.DISCARD) OutdoorService.DISCARD else OutdoorService.FINISH, active.id)
-                exit = null
+                vm.command(if (exit == WorkoutExit.DISCARD) OutdoorService.DISCARD else OutdoorService.FINISH, active.id) {
+                    exit = null
+                }
             })
         remove?.let { r -> AlertDialog(onDismissRequest = { remove = null }, title = { Text("删除这次运动和位置轨迹？") },
             confirmButton = { TextButton(onClick = { vm.delete(r); remove = null }) { Text("删除") } },

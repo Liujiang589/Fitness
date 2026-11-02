@@ -29,7 +29,7 @@ import java.time.LocalDate
 }
 
 @Composable internal fun MovementDiscovery(exercise: Exercise, open: () -> Unit) {
-    val guide = ExerciseGuides.find(exercise) ?: return
+    val guide = remember(exercise.name, exercise.equipment) { ExerciseGuides.find(exercise) } ?: return
     Surface(onClick = open, color = PaleBlue, shape = RoundedCornerShape(24.dp)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)) {

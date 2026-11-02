@@ -47,6 +47,7 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
             if (!stopped && locating) { locationNote = note; publish() }
         } } }) }
     private var registered = false
+    private val stepSamples = StepSampleGate()
     private var stepReadAt: Long? = null
     private var locating = false
     private var daily = false
@@ -242,10 +243,13 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         }
         val wantsCounter = (daily || recorder.run != null) && canCount(this) && hasCounter(this)
         if (wantsCounter && !registered) {
+            stepSamples.reset(tick()); stepReadAt = null
             registered = sensors.registerListener(this, sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER),
                 SensorManager.SENSOR_DELAY_NORMAL, 0)
             if (!registered && daily) { daily = false; saveOptions(); error = "计步传感器暂不可用，可重试开启" }
-        } else if (!wantsCounter && registered) { sensors.unregisterListener(this); registered = false }
+        } else if (!wantsCounter && registered) {
+            sensors.unregisterListener(this); registered = false; stepSamples.reset(); stepReadAt = null
+        }
         maintainWakeLock()
     }
 
@@ -272,7 +276,10 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
     }
 
     override fun onLocationChanged(location: Location) {
+        // Provider-owned objects may change before the mutex becomes available.
+        val snapshot = Location(location)
         scope.launch { lock.withLock {
+            val location = snapshot
             if (location.provider != LocationManager.GPS_PROVIDER) {
                 if (!stopped && locating) {
                     placeFrom(location, false)?.let { place = OutdoorPlace.choose(place, it, tick()) }
@@ -321,8 +328,12 @@ class OutdoorService : Service(), SensorEventListener, LocationListener {
         scope.launch { lock.withLock {
             if (stopped || !registered) return@withLock
             try {
-                if (tick() - eventTick !in 0..15000) return@withLock
-                val sampleWall = wall() - (tick() - eventTick)
+                val now = tick()
+                val decision = stepSamples.accept(counter, eventTick, now)
+                if (decision == StepSampleDecision.REJECT) return@withLock
+                // A new subscription never inherits steps collected while access was disabled.
+                if (decision == StepSampleDecision.BASELINE) store.clearBaseline()
+                val sampleWall = wall() - (now - eventTick)
                 val date = java.time.Instant.ofEpochMilli(sampleWall).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
                 store.steps(StepBaseline(date, counter, boot))
                 stepReadAt = eventTick; recorder.enableStepCounting()

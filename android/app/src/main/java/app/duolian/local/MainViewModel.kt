@@ -39,6 +39,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val operationLock = Mutex()
     private val setDrafts = TrainingDrafts()
     private val draftJobs = mutableMapOf<TrainingDraftKey, Job>()
+    val draftSaveError = MutableStateFlow<String?>(null)
     init { act { repo.initialize(); hiitRuns.value = repo.hiitRuns(); ready.value = true; autoBackup() } }
     fun act(job: suspend () -> Unit) {
         viewModelScope.launch {
@@ -61,8 +62,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     suspend fun saveRestEdits(seconds: Int) = persistRecord { owner.setRest(seconds) }
     suspend fun saveSetEdits(movementId: String, set: TrainingSet) = persistRecord {
-        sessions.value.firstOrNull { it.endedAt == null }?.let { cancelDraft(TrainingDraftKey(it.id, movementId, set.id)) }
         repo.updateSet(movementId, set)
+        sessions.value.firstOrNull { it.endedAt == null }?.let { cancelDraft(TrainingDraftKey(it.id, movementId, set.id)) }
     }
     val completedTraining = MutableStateFlow<Session?>(null)
     fun setRest(seconds: Int) = act { owner.setRest(seconds) }
@@ -74,32 +75,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         setDrafts.offer(TrainingDraft(key, grams, reps))
         draftJobs.remove(key)?.cancel()
         draftJobs[key] = viewModelScope.launch {
-            delay(600)
-            act {
-                setDrafts.take(key)?.let { draft -> repo.changeActive(draft::apply) }
-                draftJobs.remove(key)
+            try {
+                delay(600)
+                // Silent autosave: do not flash the page-wide progress indicator on every keystroke.
+                operationLock.withLock {
+                    setDrafts.peek(key)?.let { draft ->
+                        setDrafts.persist(listOf(draft)) { repo.changeActive(draft::apply) }
+                    }
+                    if (setDrafts.isEmpty) draftSaveError.value = null
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) {
+                draftSaveError.value = "输入尚未保存，草稿仍保留在当前进程。请重试保存，暂勿退出应用。"
+            } finally {
+                if (draftJobs[key] === coroutineContext[Job]) draftJobs.remove(key)
             }
         }
     }
-    private fun cancelDraft(key: TrainingDraftKey) { draftJobs.remove(key)?.cancel(); setDrafts.take(key) }
+    private fun cancelDraft(key: TrainingDraftKey) {
+        draftJobs.remove(key)?.cancel(); setDrafts.take(key)
+        if (setDrafts.isEmpty) draftSaveError.value = null
+    }
+    fun retryTrainingInputs() = act { flushDrafts() }
     private suspend fun flushDrafts() {
         val active = sessions.value.firstOrNull { it.endedAt == null } ?: return
-        val drafts = setDrafts.takeSession(active.id)
+        val drafts = setDrafts.snapshot(active.id)
         drafts.forEach { draftJobs.remove(it.key)?.cancel() }
-        if (drafts.isNotEmpty()) repo.changeActive { current -> drafts.fold(current) { session, draft -> draft.apply(session) } }
+        setDrafts.persist(drafts) { values ->
+            repo.changeActive { current -> values.fold(current) { session, draft -> draft.apply(session) } }
+        }
+        if (setDrafts.isEmpty) draftSaveError.value = null
     }
     fun discardTraining(sessionId: String) = act {
+        repo.deleteSession(sessionId)
         setDrafts.takeSession(sessionId).forEach { draftJobs.remove(it.key)?.cancel() }
-        repo.deleteSession(sessionId); stopTimer()
+        if (setDrafts.isEmpty) draftSaveError.value = null
+        stopTimer()
     }
     fun removeTrainingSet(sessionId: String, movementId: String, setId: String) = act {
-        cancelDraft(TrainingDraftKey(sessionId, movementId, setId))
         repo.removeSet(movementId, setId)
+        cancelDraft(TrainingDraftKey(sessionId, movementId, setId))
     }
     fun completeQuickSet(movementId: String, setId: String, grams: Long, reps: Int) = act {
-        sessions.value.firstOrNull { it.endedAt == null }?.let { cancelDraft(TrainingDraftKey(it.id, movementId, setId)) }
         val after = repo.changeActive { TrainingAssist.completeValues(it, movementId, setId,
             grams, reps, restFor(it), System.currentTimeMillis()) }
+        cancelDraft(TrainingDraftKey(after.id, movementId, setId))
+        if (setDrafts.isEmpty) draftSaveError.value = null
         syncRestTimer(after)
     }
     fun undoQuickSet(movementId: String, setId: String) = act {

@@ -6,8 +6,21 @@ enum class HomeMode { FIRST_PLAN, SCHEDULED, FREE_CHOICE, REST_DAY, COMPLETED }
 data class HomeFocus(val mode: HomeMode, val plan: Plan?, val label: String, val title: String,
     val description: String, val action: String)
 
+data class WeeklyRhythm(val today: LocalDate, val monday: LocalDate, val trained: Set<LocalDate>,
+    val sessions: Int, val volumeKg: Double, val streak: Int)
+data class HomeOverview(val focus: HomeFocus, val rhythm: WeeklyRhythm, val alerts: List<String>)
+
 /** Presentation only. Never creates a plan, assigns training days or starts a session. */
 object TrainingHome {
+    fun overview(plans: List<Plan>, sessions: List<Session>, exercises: List<Exercise>, today: LocalDate): HomeOverview {
+        val history = sessions.filter { it.endedAt != null }
+        val monday = today.minusDays(today.dayOfWeek.value - 1L)
+        val week = history.filter { Analytics.dateOf(it) in monday..monday.plusDays(6) }
+        return HomeOverview(focus(plans, history, today),
+            WeeklyRhythm(today, monday, week.map { Analytics.dateOf(it) }.toSet(), week.size,
+                Analytics.totalVolume(week), Analytics.streak(history, today)),
+            Diagnostics.alerts(history, exercises, today))
+    }
     fun focus(plans: List<Plan>, sessions: List<Session>, today: LocalDate): HomeFocus {
         if (plans.isEmpty()) return HomeFocus(HomeMode.FIRST_PLAN, null, "从你的选择开始", "动一动，\n感觉更好。",
             "选择想练的动作，安排自己的第一场训练。", "创建我的计划")

@@ -138,9 +138,11 @@ private class AnatomyGl(private val texture: SurfaceTexture,private var width: I
     fun draw(scene: AnatomyScene) {
         if(width<1 || height<1)return
         if(lastKind!=scene.kind || lastAngle!=scene.angle) {
-            camera=AnatomyCamera.forMotion(scene.kind,scene.angle); paths=AnatomyMesh.trajectories(scene.kind)
+            if(lastKind!=scene.kind)paths=emptyList()
+            camera=AnatomyCamera.forMotion(scene.kind,scene.angle)
             lastKind=scene.kind;lastAngle=scene.angle
         }
+        if(scene.paths && paths.isEmpty())paths=AnatomyMesh.trajectories(scene.kind)
         val view=checkNotNull(camera)
         val amount=MotionEngine.amount(scene.progress)
         val frame=AnatomyProjection.frame(AnatomyMesh.build(MotionEngine.sample(scene.kind,amount),scene.kind),view,

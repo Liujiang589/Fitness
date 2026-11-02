@@ -52,7 +52,8 @@ class ResponsiveHomeUiTest(private val width: Int, private val scale: Float) {
             .overlaps(ui.onNodeWithText("＋ 创建计划").getUnclippedBoundsInRoot()))
     }
     @Test fun weeklyCalendarKeepsAllSevenDaysWithoutHorizontalScrolling() {
-        scene { WeeklyMomentum(emptyList()) }
+        val summary = app.duolian.local.domain.TrainingHome.overview(emptyList(), emptyList(), emptyList(), java.time.LocalDate.now())
+        scene { WeeklyMomentum(summary.rhythm) }
         for (day in listOf("一", "二", "三", "四", "五", "六", "日"))
             ui.onNodeWithText(day).performScrollTo().assertIsDisplayed()
         if (scale <= 1f) {

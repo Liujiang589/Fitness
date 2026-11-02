@@ -51,7 +51,7 @@ class TrainingUiTest {
         ui.onNodeWithContentDescription("第1组重量").performScrollTo().performTextReplacement("45")
         ui.onNodeWithContentDescription("第1组次数").performTextReplacement("12")
         ui.onNode(isToggleable()).performClick()
-        ui.onNodeWithText("查看本次统计").performScrollTo().performClick()
+        ui.onNodeWithText("本次统计", substring = true).performScrollTo().performClick()
         ui.waitUntil(10000) { ui.onAllNodesWithText("540.0").fetchSemanticsNodes().isNotEmpty() }
         screenshot("premium-training.png")
         ui.onNodeWithText("结束并保存训练").performScrollTo().performClick()

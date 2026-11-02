@@ -14,8 +14,8 @@ enum class MotionJoint {
     HEAD, NECK, CHEST, PELVIS, SHOULDER_L, SHOULDER_R, ELBOW_L, ELBOW_R,
     WRIST_L, WRIST_R, HIP_L, HIP_R, KNEE_L, KNEE_R, ANKLE_L, ANKLE_R, TOE_L, TOE_R
 }
-enum class MotionPropKind { BENCH, BARBELL, DUMBBELL, CABLE, ROPE, RAIL, PAD, MAT, BAR, ROLLER }
-data class MotionProp(val kind: MotionPropKind, val a: MotionPoint, val b: MotionPoint)
+enum class MotionPropKind { BENCH, BARBELL, DUMBBELL, CABLE, ROPE, RAIL, PAD, MAT, BAR, ROLLER, FOOT_PLATE }
+data class MotionProp(val kind: MotionPropKind, val a: MotionPoint, val b: MotionPoint, val normal: MotionPoint? = null)
 data class MotionPose(val joints: Map<MotionJoint, MotionPoint>, val props: List<MotionProp>) {
     operator fun get(joint: MotionJoint) = joints.getValue(joint)
 }
@@ -60,7 +60,6 @@ object MotionEngine {
         var torsoYaw = 0f
         var handL = p(.04f,.90f,.29f); var handR = p(.04f,.90f,-.29f)
         var footL = p(.05f,.08f,.22f); var footR = p(.05f,.08f,-.22f)
-        var toeL: MotionPoint? = null; var toeR: MotionPoint? = null
         var elbowL: MotionPoint? = null; var elbowR: MotionPoint? = null
         var kneeL: MotionPoint? = null; var kneeR: MotionPoint? = null
         var armPoleL = p(.35f,1.2f,.8f); var armPoleR = p(.35f,1.2f,-.8f)
@@ -108,7 +107,7 @@ object MotionEngine {
                 hip=mix(p(0,.96f),if(split)p(-.10f,.56f) else p(-.39f,.55f),t)
                 shoulder=hip+if(split)p(.02f,.60f) else mix(p(.02f,.60f),p(.31f,.52f),t)
                 if(split) {
-                    footL=p(.25f,.08f,.19f);footR=p(-.61f,.47f,-.19f)
+                    footL=p(.25f,.08f,.19f);footR=p(-.61f,.558f,-.19f)
                     legPoleR=p(.10f,.03f,-.2f)
                     bench(p(-.95f,.4f),p(-.45f,.4f))
                     handL=shoulder+p(.03f,-.65f,.30f);handR=handL.copy(z=-.30f)
@@ -178,7 +177,7 @@ object MotionEngine {
                 armPoleL=shoulder+p(.08f,-.2f,.85f);armPoleR=armPoleL.copy(z=-.85f)
                 props+=MotionProp(MotionPropKind.BAR,p(0,barHeight,-.78f),p(0,barHeight,.78f))
                 if(pull) {
-                    footL=hip+p(-.15f,-.72f,.18f);footR=footL.copy(z=-.18f)
+                    footL=hip+p(-.15f,-.58f,.18f);footR=footL.copy(z=-.18f)
                 } else {
                     val angle=mix(-90f,-5f,t)*PI.toFloat()/180f
                     kneeL=hip+p(cos(angle)*.45f,sin(angle)*.45f,.16f);kneeR=kneeL.copy(z=-.16f)
@@ -267,7 +266,6 @@ object MotionEngine {
                 handL=p(-.34f,.44f,.34f);handR=handL.copy(z=-.34f)
                 armPoleL=p(-.6f,.65f,.45f);armPoleR=armPoleL.copy(z=-.45f)
                 props+=MotionProp(MotionPropKind.RAIL,p(-.10f,.80f),p(.58f,1.48f))
-                props+=MotionProp(MotionPropKind.PAD,footL.copy(z=-.48f),footL.copy(z=.48f))
             }
             MotionKind.LEG_EXTENSION, MotionKind.SEATED_CALF -> {
                 hip=p(-.33f,.65f);shoulder=p(-.36f,1.26f)
@@ -280,13 +278,12 @@ object MotionEngine {
                 } else {
                     kneeL=p(.10f,mix(.65f,.74f,t),.18f);kneeR=kneeL.copy(z=-.18f)
                     footL=p(.12f,mix(.16f,.25f,t),.18f);footR=footL.copy(z=-.18f)
-                    toeL=p(.29f,.13f,.18f);toeR=toeL.copy(z=-.18f)
                     props+=MotionProp(MotionPropKind.PAD,kneeL+p(-.1f,.08f,-.55f),kneeR+p(.1f,.08f,.55f))
                 }
                 if(kind==MotionKind.LEG_EXTENSION) {
                     props+=MotionProp(MotionPropKind.ROLLER,footL+p(0,.10f,-.65f),footL+p(0,.10f,.30f))
                 } else {
-                    props+=MotionProp(MotionPropKind.PAD,p(.29f,.09f,-.43f),p(.29f,.09f,.43f))
+                    props+=MotionProp(MotionPropKind.FOOT_PLATE,p(.31f,.035f,-.43f),p(.31f,.035f,.43f),p(0,1))
                 }
             }
             MotionKind.LEG_CURL -> {
@@ -330,23 +327,28 @@ object MotionEngine {
             }
             MotionKind.STANDING_CALF -> {
                 hip=hip+p(0,.10f*t);shoulder=shoulder+p(0,.10f*t)
-                footL=footL+p(0,.10f*t);footR=footR+p(0,.10f*t)
-                toeL=p(.22f,.04f,.22f);toeR=toeL.copy(z=-.22f)
+                footL=p(.05f,FootKinematics.flatHeight,.22f);footR=footL.copy(z=-.22f)
                 handL=handL+p(0,.10f*t);handR=handR+p(0,.10f*t)
             }
             MotionKind.PUSHUP -> {
                 mat()
                 val height=mix(.70f,.25f,t)
                 val bodyLength=1.519f
-                val forward=sqrt(bodyLength*bodyLength-(height-.07f)*(height-.07f))
+                val ankleHeight=.225f
+                val forward=sqrt(bodyLength*bodyLength-(height-ankleHeight)*(height-ankleHeight))
                 shoulder=p(-1.05f+forward,height)
-                hip=p(-1.05f,.07f)+(shoulder-p(-1.05f,.07f))*(.919f/bodyLength)
-                footL=p(-1.05f,.07f,.16f);footR=footL.copy(z=-.16f)
-                toeL=p(-.93f,.04f,.16f);toeR=toeL.copy(z=-.16f)
+                hip=p(-1.05f,ankleHeight)+(shoulder-p(-1.05f,ankleHeight))*(.919f/bodyLength)
+                footL=p(-1.05f,ankleHeight,.16f);footR=footL.copy(z=-.16f)
                 handL=p(.55f,.07f,.31f);handR=handL.copy(z=-.31f)
                 armPoleL=p(.05f,.35f,.7f);armPoleR=armPoleL.copy(z=-.7f)
                 legPoleL=p(-.55f,.45f,.16f);legPoleR=legPoleL.copy(z=-.16f)
             }
+        }
+        if(FootKinematics.planted(kind,true))footL=footL.copy(y=FootKinematics.flatHeight)
+        if(FootKinematics.planted(kind,false))footR=footR.copy(y=FootKinematics.flatHeight)
+        if(kind==MotionKind.STANDING_CALF || kind==MotionKind.SEATED_CALF) {
+            if(kind==MotionKind.SEATED_CALF) { footL=footL.copy(y=.158f);footR=footR.copy(y=.158f) }
+            footL=FootKinematics.raisedAnkle(footL,t);footR=FootKinematics.raisedAnkle(footR,t)
         }
         val joints=mutableMapOf<MotionJoint,MotionPoint>()
         val side=p(-sin(torsoYaw)*.21f,0,cos(torsoYaw)*.21f)
@@ -368,8 +370,14 @@ object MotionEngine {
         joints[MotionJoint.ELBOW_R]=rightArm.first!!;joints[MotionJoint.WRIST_R]=rightArm.second
         joints[MotionJoint.KNEE_L]=leftLeg.first!!;joints[MotionJoint.ANKLE_L]=leftLeg.second
         joints[MotionJoint.KNEE_R]=rightLeg.first!!;joints[MotionJoint.ANKLE_R]=rightLeg.second
-        joints[MotionJoint.TOE_L]=toeL?:leftLeg.second+p(.13f,-.035f)
-        joints[MotionJoint.TOE_R]=toeR?:rightLeg.second+p(.13f,-.035f)
+        val leftFoot=FootKinematics.frame(kind,true,leftLeg.first!!,leftLeg.second,t)
+        val rightFoot=FootKinematics.frame(kind,false,rightLeg.first!!,rightLeg.second,t)
+        joints[MotionJoint.TOE_L]=leftFoot.ball(leftLeg.second)
+        joints[MotionJoint.TOE_R]=rightFoot.ball(rightLeg.second)
+        if(kind in setOf(MotionKind.LEG_PRESS,MotionKind.SEATED_ROW)) {
+            val center=(leftLeg.second+rightLeg.second)*.5f+leftFoot.forward*.08f-leftFoot.up*.121f
+            props+=MotionProp(MotionPropKind.FOOT_PLATE,center.copy(z=-.48f),center.copy(z=.48f),leftFoot.up)
+        }
         val wl=leftArm.second;val wr=rightArm.second
         if(barbell) {
             val center=(wl+wr)*.5f

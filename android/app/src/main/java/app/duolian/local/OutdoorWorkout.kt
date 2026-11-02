@@ -64,12 +64,13 @@ internal enum class WorkoutExit { SAVE, DISCARD }
 
 /** Dismissal never resumes a paused workout or changes what has been recorded. */
 @Composable internal fun WorkoutExitDialog(run: OutdoorRun, exit: WorkoutExit, recording: Boolean,
-    busy: Boolean, dismiss: () -> Unit, confirm: () -> Unit) {
+    busy: Boolean, dismiss: () -> Unit, confirm: () -> Unit, error: String? = null) {
     val discarding = exit == WorkoutExit.DISCARD
     AlertDialog(onDismissRequest = { if (!busy) dismiss() },
         title = { Text(if (discarding) "放弃这次${run.kind.label}？" else "保存这次${run.kind.label}？") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Text("已记录 %.2f 公里 · %s".format(run.distanceMeters / 1000, clock(run.elapsedMs)), fontWeight = FontWeight.SemiBold)
                 Text(if (discarding) "本次路线、时长和运动步数将被移除，不会出现在运动足迹中。当天已采集的步数保留。" else
                     if (run.points.isEmpty()) "目前没有可靠路线，保存后仍可查看已记录的时长和步数。" else
@@ -79,7 +80,7 @@ internal enum class WorkoutExit { SAVE, DISCARD }
             }
         },
         confirmButton = { TextButton(enabled = !busy, onClick = confirm) {
-            Text(if (discarding) "放弃，不保存" else "结束并保存",
+            Text(if (busy) "正在处理…" else if (discarding) "放弃，不保存" else "结束并保存",
                 color = if (discarding && !busy) MaterialTheme.colorScheme.error else Color.Unspecified)
         } },
         dismissButton = { TextButton(enabled = !busy, onClick = dismiss) { Text("返回运动页") } })

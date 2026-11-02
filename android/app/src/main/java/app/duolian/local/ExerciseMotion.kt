@@ -68,7 +68,9 @@ private val DemoBackground = ArtSurface
 @Composable internal fun ExerciseMotionCanvas(guide: ExerciseGuide, progress: State<Float>,
     modifier: Modifier = Modifier, angle: Float = 55f, detailed: Boolean = true, showTrajectory: Boolean = true) {
     val camera=remember(guide.kind,angle) { AnatomyCamera.forMotion(guide.kind,angle) }
-    val paths=remember(guide.kind) { AnatomyMesh.trajectories(guide.kind) }
+    val paths=remember(guide.kind,showTrajectory) {
+        if (showTrajectory) AnatomyMesh.trajectories(guide.kind) else emptyList()
+    }
     Box(modifier.background(DemoBackground).graphicsLayer().semantics {
         contentDescription = "${guide.name}肌肉分区动态示范，主要肌群：${guide.focus}"
     }.drawWithCache {
@@ -118,10 +120,15 @@ private val DemoBackground = ArtSurface
                     Text(if(playing)"暂停示范" else "播放示范")
                 }
                 TextButton(onClick={speed=if(speed==1f).5f else 1f}) { Text(if(speed==1f)"1× 速度" else "0.5× 慢速") }
-                TextButton(onClick={angle=if(angle==0f)defaultAngle else 0f}) { Text(if(angle==0f)"斜侧" else "侧面") }
-                TextButton(onClick={angle=90f}) { Text("正面") }
-                TextButton(onClick={angle=-90f}) { Text("背面") }
-                TextButton(onClick={showTrajectory=!showTrajectory}) { Text(if(showTrajectory)"隐藏轨迹" else "显示轨迹") }
+            }
+            DetailDisclosure("视角与运动轨迹") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick={angle=defaultAngle}) { Text("斜侧") }
+                    TextButton(onClick={angle=0f}) { Text("侧面") }
+                    TextButton(onClick={angle=90f}) { Text("正面") }
+                    TextButton(onClick={angle=-90f}) { Text("背面") }
+                    TextButton(onClick={showTrajectory=!showTrajectory}) { Text(if(showTrajectory)"隐藏轨迹" else "显示轨迹") }
+                }
             }
             Slider(value=progress.floatValue,onValueChange={playing=false;progress.floatValue=it},
                 modifier=Modifier.semantics{contentDescription="动作示范进度"})
@@ -135,8 +142,7 @@ private val DemoBackground = ArtSurface
                     }
                 }
             }
-            Text("目标肌群 · ${guide.focus}",color=Color(0xFFC35F48),style=MaterialTheme.typography.bodySmall)
-            Text("珊瑚色：主要肌群  ·  浅金色：辅助肌群",color=Muted,style=MaterialTheme.typography.labelSmall)
+            MuscleFocusCard(guide)
             Text("可慢放、拖动和切换视角。肌群分区与路径为教学示意，不代表个人实际肌肉激活强度。",color=Muted,
                 style=MaterialTheme.typography.labelSmall)
         }

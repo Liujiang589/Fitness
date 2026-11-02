@@ -135,11 +135,10 @@ import java.time.LocalDate
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable internal fun WeeklyMomentum(history: List<Session>) {
-    val today = rememberTrainingDate()
-    val monday = today.minusDays(today.dayOfWeek.value - 1L)
-    val thisWeek = androidx.compose.runtime.remember(history, monday) { history.filter { Analytics.dateOf(it) in monday..monday.plusDays(6) } }
-    val trained = androidx.compose.runtime.remember(thisWeek) { thisWeek.map { Analytics.dateOf(it) }.toSet() }
+@Composable internal fun WeeklyMomentum(summary: WeeklyRhythm) {
+    val today = summary.today
+    val monday = summary.monday
+    val trained = summary.trained
     val dayWidth = maxOf(28.dp, textWidth("30", MaterialTheme.typography.labelLarge) + 8.dp)
     Panel {
         ResponsiveHeader(leading = {
@@ -177,10 +176,10 @@ import java.time.LocalDate
             }
         }
         }
-        Text(if (thisWeek.isEmpty()) "这一周，从一次适合自己的训练开始。" else "已记录的每一次训练，都是自己的积累。",
+        Text(if (summary.sessions == 0) "这一周，从一次适合自己的训练开始。" else "已记录的每一次训练，都是自己的积累。",
             color = Muted, style = MaterialTheme.typography.bodySmall)
         DetailDisclosure("本周数据") {
-            val values = listOf(thisWeek.size.toString(), number(Analytics.totalVolume(thisWeek)), Analytics.streak(history).toString())
+            val values = listOf(summary.sessions.toString(), number(summary.volumeKg), summary.streak.toString())
             val labels = listOf("本周训练 / 次", "本周容量 / kg", "连续训练 / 天")
             val minimum = maxOf(88.dp, values.maxOf { textWidth(it, MaterialTheme.typography.headlineSmall) },
                 labels.maxOf { textWidth(it, MaterialTheme.typography.labelSmall) })

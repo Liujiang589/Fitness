@@ -96,34 +96,45 @@ internal class ScreenActions(
 @Composable internal fun TrainingPage(vm: MainViewModel, exercises: List<Exercise>, plans: List<Plan>,
     sessions: List<Session>, food: List<Food>, water: List<Water>, busy: Boolean, a: ScreenActions) {
     val active = remember(sessions) { sessions.firstOrNull { it.endedAt == null } }
-    val history = remember(sessions) { sessions.filter { it.endedAt != null } }
-    val alerts = remember(sessions, exercises) { Diagnostics.alerts(sessions, exercises) }
     var section by rememberSaveable { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
     val planListState = rememberLazyListState()
     val today = rememberTrainingDate()
-    val focus = remember(plans, sessions, today) { TrainingHome.focus(plans, sessions, today) }
     if (active != null) {
         key(active.id) { ActiveTraining(active, vm, sessions, exercises, busy, a.ask, a.detail) }
         return
     }
+    // Retain one background result outside lazy items so scrolling cannot restart history analysis.
+    val overview = rememberBackgroundResult(plans, sessions, exercises, today) {
+        TrainingHome.overview(plans, sessions, exercises, today)
+    }
     LazyColumn(Modifier.fillMaxSize(), state = if (section == 0) listState else planListState,
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { HomePlanToolbar(section, { section = it }, { a.plan(null) }) }
+            item(key = "home-toolbar", contentType = "toolbar") { HomePlanToolbar(section, { section = it }, { a.plan(null) }) }
             if (section == 0) {
-                item { TrainingSpotlight(focus, busy) {
+                if (overview == null) item(key = "home-loading", contentType = "loading") {
+                    Panel { Text("正在整理训练记录…", color = Muted); LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                }
+                overview?.let { summary ->
+                val focus = summary.focus
+                item(key = "home-focus", contentType = "focus") { TrainingSpotlight(focus, busy) {
                     when {
                         focus.plan != null -> vm.act { vm.repo.start(focus.plan.id) }
                         focus.mode == HomeMode.FIRST_PLAN -> a.plan(null)
                         else -> section = 1
                     }
                 } }
-                item { OutdoorEntry({ a.auxiliary("outdoor") }) }
-                item { WeeklyMomentum(history) }
+                }
+                item(key = "home-outdoor", contentType = "outdoor") { OutdoorEntry({ a.auxiliary("outdoor") }) }
+                overview?.let { summary ->
+                    item(key = "home-rhythm", contentType = "rhythm") { WeeklyMomentum(summary.rhythm) }
+                }
                 item(key = "weekly-review", contentType = "weekly-review") { WeeklyReviewCard(sessions, food) }
-                item { HomeLifeLinks(a.nutrition) { a.body(null) } }
-                if (alerts.isNotEmpty()) item { Panel { DetailDisclosure("训练观察与提示") { DiagnosticsBanner(alerts) } } }
+                item(key = "home-life", contentType = "life") { HomeLifeLinks(a.nutrition) { a.body(null) } }
+                overview?.alerts?.takeIf { it.isNotEmpty() }?.let { alerts ->
+                    item(key = "home-observations", contentType = "observations") { Panel { DetailDisclosure("训练观察与提示") { DiagnosticsBanner(alerts) } } }
+                }
             } else {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -138,7 +149,7 @@ internal class ScreenActions(
         if (plans.isEmpty()) item {
             EmptyPanel("建立你的训练安排", "点击“创建我的计划”或“＋ 新建”，自己选择动作和训练组数。")
         }
-        items(plans, key = { it.id }) { p ->
+        items(plans, key = { it.id }, contentType = { "plan" }) { p ->
             var menu by remember { mutableStateOf(false) }
             Panel {
                 Row(verticalAlignment = Alignment.CenterVertically) {
